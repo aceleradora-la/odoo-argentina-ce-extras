@@ -45,6 +45,7 @@
 
                 <field name="line_ids" nolabel="1" readonly="1" context="{'default_wizard_id': id}">
                     <tree decoration-warning="exists == True" editable="false">
+                        <field name="exists"/>
                         <field name="document_type"/>
                         <field name="invoice_number"/>
                         <field name="partner_name"/>
@@ -67,4 +68,3 @@
         </field>
     </record>
 </odoo>
-
