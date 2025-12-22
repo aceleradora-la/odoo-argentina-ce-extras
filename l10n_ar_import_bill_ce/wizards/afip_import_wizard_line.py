@@ -78,9 +78,15 @@ class AfipImportWizardLine(models.TransientModel):
                     "company_type": "company",
                 }
             )
-            # Si el tipo de identificación es CUIT (código AFIP 80), actualizamos los datos desde AFIP
+            # Si el tipo de identificación es CUIT (código AFIP 80), intentamos actualizar los datos desde AFIP
+            # Este método puede no estar disponible en Community, verificar si existe
             if partner.l10n_latam_identification_type_id.l10n_ar_afip_code == 80:
-                partner.button_update_partner_data_from_afip()
+                if hasattr(partner, 'button_update_partner_data_from_afip'):
+                    try:
+                        partner.button_update_partner_data_from_afip()
+                    except Exception:
+                        # Si el método no está disponible o falla, continuar sin actualizar
+                        pass
 
         return partner
 

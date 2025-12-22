@@ -11,7 +11,7 @@
                     string="Importar Facturas desde Excel" 
                     type="object"
                     class="btn-primary"
-                    invisible="not (type == 'purchase' or (type == 'sale' and not l10n_ar_is_pos)) or company_id.country_code != 'AR' or company_id.l10n_ar_afip_responsibility_type_id.code != '1'"
+                    invisible="not (type == 'purchase' or type == 'sale') or company_id.country_code != 'AR' or not company_id.l10n_ar_afip_responsibility_type_id or company_id.l10n_ar_afip_responsibility_type_id.code != '1'"
                     help="Importar facturas desde archivo Excel exportado desde ARCA/AFIP"/>
             </xpath>
         </field>

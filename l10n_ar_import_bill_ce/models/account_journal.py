@@ -16,8 +16,11 @@ class AccountJournal(models.Model):
         self.ensure_one()
         
         # Validar que el diario sea válido para importación
+        # l10n_ar_is_pos puede no estar disponible en Community, verificar si existe
+        is_pos = getattr(self, 'l10n_ar_is_pos', False) if hasattr(self, 'l10n_ar_is_pos') else False
+        
         if not (
-            (self.type == "purchase" or (self.type == "sale" and not self.l10n_ar_is_pos))
+            (self.type == "purchase" or (self.type == "sale" and not is_pos))
             and self.company_id.country_code == "AR"
             and self.company_id.l10n_ar_afip_responsibility_type_id.code == "1"
         ):

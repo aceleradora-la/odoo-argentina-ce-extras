@@ -7,7 +7,7 @@
     "website": "www.adhoc.com.ar",
     "license": "AGPL-3",
     "summary": "",
-    "depends": ["account", "l10n_ar_edi"],
+    "depends": ["account", "l10n_ar", "l10n_latam_base", "l10n_latam_invoice_document"],
     "data": [
         "security/ir.model.access.csv",
         "wizards/afip_import_wizard.xml",
