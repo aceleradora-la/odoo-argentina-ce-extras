@@ -1,6 +1,6 @@
 {
     "name": "Argentinian Importing Bills from ARCA",
-    "version": "17.0.1.0.0",
+    "version": "18.0.1.0.0",
     "category": "Localization/Argentina",
     "sequence": 8,
     "author": "ADHOC SA",
@@ -17,8 +17,4 @@
     "installable": True,
     "auto_install": False,
     "application": False,
-    "external_dependencies": {
-        "python": ["pandas", "openpyxl"],
-    },
 }
-
