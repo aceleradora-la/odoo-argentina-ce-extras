@@ -1,0 +1,21 @@
+{
+    "name": "Argentinian Importing Bills from ARCA",
+    "version": "17.0.1.0.0",
+    "category": "Localization/Argentina",
+    "sequence": 8,
+    "author": "ADHOC SA",
+    "website": "www.adhoc.com.ar",
+    "license": "AGPL-3",
+    "summary": "",
+    "depends": ["account", "l10n_ar_edi"],
+    "data": [
+        "security/ir.model.access.csv",
+        "wizards/afip_import_wizard.xml",
+        "views/account_journal.xml",
+        "views/account_move.xml",
+    ],
+    "installable": True,
+    "auto_install": False,
+    "application": False,
+}
+
