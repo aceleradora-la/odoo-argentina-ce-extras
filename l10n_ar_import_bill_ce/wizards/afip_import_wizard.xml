@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_afip_import_wizard_upload_form" model="ir.ui.view">
+        <field name="name">afip.import.wizard.upload.form</field>
+        <field name="model">afip.import.wizard.upload</field>
+        <field name="arch" type="xml">
+            <form string="Importar Facturas desde Excel">
+                <group>
+                    <field name="journal_id" readonly="1"/>
+                    <field name="company_id" readonly="1"/>
+                </group>
+                <group>
+                    <field name="attachment_id" filename="attachment_name" required="1"/>
+                    <field name="attachment_name" invisible="1"/>
+                </group>
+                <footer>
+                    <button name="action_upload" string="Continuar" type="object" class="btn-primary"/>
+                    <button string="Cancelar" special="cancel" class="btn-secondary"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_afip_import_wizard_form" model="ir.ui.view">
+        <field name="name">afip.import.wizard.form</field>
+        <field name="model">afip.import.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Importador de Facturas ARCA">
+                <div class="alert alert-info" role="status" invisible="total_bills_exists == 0">
+                   <i class="fa fa-info-circle" title="Info"/> <span invisible="total_bills_exists == 0">Las facturas resaltadas en amarillo no se crearán porque ya existen. </span>
+                </div>
+
+                <group>
+                    <group>
+                    <field name="total_bills_to_create"  class="oe_inline"/>
+                    </group>
+                    <group>
+                    <field name="total_bills_exists"  class="oe_inline"/>
+                    </group>
+                </group>
+
+                <group>
+                    <field name="auto_validate"/>
+                </group>
+
+                <field name="line_ids" nolabel="1" readonly="1">
+
+                    <list decoration-warning="exists == True">
+                        <field name="document_type"/>
+                        <field name="invoice_number"/>
+                        <field name="partner_name"/>
+                        <field name="partner_vat"/>
+                        <field name="date_invoice"/>
+                        <field name="currency"/>
+                        <field name="amount_total"/>
+                    </list>
+
+                </field>
+
+                <footer>
+
+                    <button name="action_confirm" type="object" string="Crear Facturas" class="btn-primary"/>
+                    <button string="Cancelar" special="cancel" class="btn-secondary"/>
+
+
+
+                </footer>
+            </form>
+        </field>
+    </record>
+</odoo>
+
