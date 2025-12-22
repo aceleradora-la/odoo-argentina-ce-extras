@@ -43,8 +43,9 @@
                     <field name="auto_validate"/>
                 </group>
 
-                <field name="line_ids" nolabel="1" readonly="1">
-                    <tree decoration-warning="exists == True">
+                <field name="line_ids" nolabel="1" readonly="1" context="{'default_wizard_id': id}">
+                    <tree decoration-warning="exists == True" editable="false">
+                        <field name="exists" invisible="1"/>
                         <field name="document_type"/>
                         <field name="invoice_number"/>
                         <field name="partner_name"/>
