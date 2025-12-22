@@ -33,8 +33,8 @@ Uso
 Requisitos
 ==========
 
-- Odoo 17.0 Community Edition
-- Módulo `l10n_ar_edi` instalado
+- Odoo 17.0 o 18.0 Community Edition
+- Módulos base de localización argentina: `l10n_ar`, `l10n_latam_base`, `l10n_latam_invoice_document`
 - Empresa argentina con responsabilidad AFIP tipo 1
 
 Autor
