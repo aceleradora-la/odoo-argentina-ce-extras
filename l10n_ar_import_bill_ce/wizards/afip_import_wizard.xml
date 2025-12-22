@@ -45,7 +45,7 @@
 
                 <field name="line_ids" nolabel="1" readonly="1" context="{'default_wizard_id': id}">
                     <tree decoration-warning="exists == True" editable="false">
-                        <field name="exists" column_invisible="1"/>
+                        <field name="exists" optional="hide"/>
                         <field name="document_type"/>
                         <field name="invoice_number"/>
                         <field name="partner_name"/>
