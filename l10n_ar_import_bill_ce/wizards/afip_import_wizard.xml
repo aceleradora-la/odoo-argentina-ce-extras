@@ -44,8 +44,7 @@
                 </group>
 
                 <field name="line_ids" nolabel="1" readonly="1">
-
-                    <list decoration-warning="exists == True">
+                    <tree decoration-warning="exists == True">
                         <field name="document_type"/>
                         <field name="invoice_number"/>
                         <field name="partner_name"/>
@@ -53,8 +52,7 @@
                         <field name="date_invoice"/>
                         <field name="currency"/>
                         <field name="amount_total"/>
-                    </list>
-
+                    </tree>
                 </field>
 
                 <footer>

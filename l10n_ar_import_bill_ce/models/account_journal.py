@@ -3,7 +3,13 @@
 import base64
 from io import BytesIO
 
-import pandas as pd
+try:
+    import pandas as pd
+    PANDAS_AVAILABLE = True
+except ImportError:
+    PANDAS_AVAILABLE = False
+    pd = None
+
 from odoo import _, api, models
 from odoo.exceptions import UserError
 
@@ -43,6 +49,12 @@ class AccountJournal(models.Model):
 
     def import_bills_from_xls(self, attachments):
         """Import bills from Excel attachments"""
+        if not PANDAS_AVAILABLE:
+            raise UserError(
+                _("El módulo 'pandas' no está instalado. "
+                  "Por favor, instálelo ejecutando: pip install pandas openpyxl")
+            )
+        
         # Asegurarse de que attachments sea un recordset
         if not isinstance(attachments, models.Model):
             attachments = self.env["ir.attachment"].browse(attachments if isinstance(attachments, (list, tuple)) else [attachments])
