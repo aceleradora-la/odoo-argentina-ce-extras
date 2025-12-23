@@ -10,11 +10,11 @@
         <field name="context">{}</field>
     </record>
 
-    <!-- Menú en Contabilidad -->
+    <!-- Menú en Proveedores -->
     <menuitem
         id="menu_import_bills_from_excel"
         name="Importar Facturas desde Excel"
-        parent="account.menu_finance"
+        parent="account.menu_account_payable"
         action="action_import_bills_from_excel"
         sequence="100"
         groups="account.group_account_user"/>

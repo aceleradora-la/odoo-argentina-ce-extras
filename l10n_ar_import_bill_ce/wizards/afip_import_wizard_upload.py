@@ -1,4 +1,4 @@
-from odoo import _, fields, models
+from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 
 
@@ -6,6 +6,12 @@ class AfipImportWizardUpload(models.TransientModel):
     _name = "afip.import.wizard.upload"
     _description = "Wizard para subir archivo Excel de importación de facturas"
 
+    company_id = fields.Many2one(
+        "res.company", 
+        required=True, 
+        string="Compañía",
+        default=lambda self: self.env.company
+    )
     journal_id = fields.Many2one(
         "account.journal", 
         required=True, 
@@ -13,7 +19,12 @@ class AfipImportWizardUpload(models.TransientModel):
         domain="[('type', 'in', ['purchase', 'sale']), ('company_id', '=', company_id)]",
         help="Seleccione el diario de compras o ventas donde se importarán las facturas"
     )
-    company_id = fields.Many2one("res.company", required=True, string="Compañía")
+    
+    @api.onchange('company_id')
+    def _onchange_company_id(self):
+        """Limpiar el diario cuando cambia la compañía"""
+        if self.company_id:
+            self.journal_id = False
     attachment_id = fields.Binary(
         string="Archivo Excel",
         required=True,
