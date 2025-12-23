@@ -37,16 +37,22 @@ class AfipImportWizardLine(models.TransientModel):
     @api.depends("invoice_number", "partner_vat")
     def _compute_exists(self):
         for line in self:
+            if not line.invoice_number or not line.partner_vat:
+                line.exists = False
+                continue
+                
             # Determine move types based on journal type
             if line.wizard_id.journal_id.type == "sale":
                 move_types = ["out_refund", "out_invoice"]
             else:
                 move_types = ["in_refund", "in_invoice"]
 
+            # Search using l10n_latam_document_number for exact match
+            # This is the field where the invoice number is actually stored
             existing_invoice = line.env["account.move"].search(
                 [
                     ("move_type", "in", move_types),
-                    ("display_name", "ilike", line.invoice_number),
+                    ("l10n_latam_document_number", "=", line.invoice_number),
                     ("partner_id.vat", "=", line.partner_vat),
                     ("company_id", "=", line.wizard_id.company_id.id),
                 ],
