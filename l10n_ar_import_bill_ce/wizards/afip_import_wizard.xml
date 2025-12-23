@@ -6,8 +6,8 @@
         <field name="arch" type="xml">
             <form string="Importar Facturas desde Excel">
                 <group>
-                    <field name="journal_id" readonly="1"/>
                     <field name="company_id" readonly="1"/>
+                    <field name="journal_id"/>
                 </group>
                 <group>
                     <field name="attachment_id" filename="attachment_name" required="1"/>
@@ -45,7 +45,7 @@
 
                 <field name="line_ids" nolabel="1" readonly="1" context="{'default_wizard_id': id}">
                     <tree decoration-warning="exists == True" editable="false">
-                        <field name="exists" invisible="1"/>
+                        <field name="exists" optional="hide"/>
                         <field name="document_type"/>
                         <field name="invoice_number"/>
                         <field name="partner_name"/>

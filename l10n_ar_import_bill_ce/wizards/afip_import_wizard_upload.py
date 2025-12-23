@@ -6,7 +6,13 @@ class AfipImportWizardUpload(models.TransientModel):
     _name = "afip.import.wizard.upload"
     _description = "Wizard para subir archivo Excel de importación de facturas"
 
-    journal_id = fields.Many2one("account.journal", required=True, string="Diario")
+    journal_id = fields.Many2one(
+        "account.journal", 
+        required=True, 
+        string="Diario",
+        domain="[('type', 'in', ['purchase', 'sale']), ('company_id', '=', company_id)]",
+        help="Seleccione el diario de compras o ventas donde se importarán las facturas"
+    )
     company_id = fields.Many2one("res.company", required=True, string="Compañía")
     attachment_id = fields.Binary(
         string="Archivo Excel",

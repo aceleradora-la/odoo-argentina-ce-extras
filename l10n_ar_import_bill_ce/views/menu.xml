@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Acción para importar facturas desde Excel -->
+    <record id="action_import_bills_from_excel" model="ir.actions.act_window">
+        <field name="name">Importar Facturas desde Excel</field>
+        <field name="type">ir.actions.act_window</field>
+        <field name="res_model">afip.import.wizard.upload</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+        <field name="context">{}</field>
+    </record>
+
+    <!-- Menú en Contabilidad -->
+    <menuitem
+        id="menu_import_bills_from_excel"
+        name="Importar Facturas desde Excel"
+        parent="account.menu_finance"
+        action="action_import_bills_from_excel"
+        sequence="100"
+        groups="account.group_account_user"/>
+</odoo>
+

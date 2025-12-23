@@ -193,7 +193,7 @@ class AccountJournal(models.Model):
                 "type": "ir.actions.act_window",
                 "res_model": "afip.import.wizard",
                 "target": "new",
-                "views": [[self.env.ref("l10n_ar_import_bill.view_afip_import_wizard_form").id, "form"]],
+                "views": [[self.env.ref("l10n_ar_import_bill_ce.view_afip_import_wizard_form").id, "form"]],
                 "res_id": wizard.id,
             }
 
