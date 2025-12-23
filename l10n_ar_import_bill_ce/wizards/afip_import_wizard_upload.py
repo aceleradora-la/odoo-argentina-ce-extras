@@ -27,6 +27,22 @@ class AfipImportWizardUpload(models.TransientModel):
 
         if not self.attachment_id:
             raise UserError(_("Debe seleccionar un archivo para importar"))
+        
+        if not self.journal_id:
+            raise UserError(_("Debe seleccionar un diario para importar las facturas"))
+
+        # Validar que el diario sea válido para importación
+        is_pos = getattr(self.journal_id, 'l10n_ar_is_pos', False) if hasattr(self.journal_id, 'l10n_ar_is_pos') else False
+        
+        if not (
+            (self.journal_id.type == "purchase" or (self.journal_id.type == "sale" and not is_pos))
+            and self.journal_id.company_id.country_code == "AR"
+            and self.journal_id.company_id.l10n_ar_afip_responsibility_type_id.code == "1"
+        ):
+            raise UserError(
+                _("Este diario no es válido para importar facturas. "
+                  "Debe ser un diario de compras o ventas (no POS) para una empresa argentina con responsabilidad tipo 1.")
+            )
 
         # Crear un attachment temporal
         attachment = self.env["ir.attachment"].create(
