@@ -19,18 +19,18 @@ class AfipImportWizardUpload(models.TransientModel):
         domain="[('type', 'in', ['purchase', 'sale']), ('company_id', '=', company_id)]",
         help="Seleccione el diario de compras o ventas donde se importarán las facturas"
     )
-    
-    @api.onchange('company_id')
-    def _onchange_company_id(self):
-        """Limpiar el diario cuando cambia la compañía"""
-        if self.company_id:
-            self.journal_id = False
     attachment_id = fields.Binary(
         string="Archivo Excel",
         required=True,
         help="Seleccione el archivo Excel exportado desde ARCA/AFIP",
     )
     attachment_name = fields.Char(string="Nombre del archivo")
+    
+    @api.onchange('company_id')
+    def _onchange_company_id(self):
+        """Limpiar el diario cuando cambia la compañía"""
+        if self.company_id:
+            self.journal_id = False
 
     def action_upload(self):
         """Procesa el archivo subido y abre el wizard de importación"""
