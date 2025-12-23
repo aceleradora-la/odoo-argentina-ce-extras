@@ -6,8 +6,8 @@
         <field name="arch" type="xml">
             <form string="Importar Facturas desde Excel">
                 <group>
-                    <field name="journal_id" readonly="1"/>
                     <field name="company_id" readonly="1"/>
+                    <field name="journal_id"/>
                 </group>
                 <group>
                     <field name="attachment_id" filename="attachment_name" required="1"/>
