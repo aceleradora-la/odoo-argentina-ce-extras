@@ -41,6 +41,14 @@ class AfipImportWizardLine(models.TransientModel):
                 line.exists = False
                 continue
                 
+            # Normalizar el número de factura (eliminar espacios)
+            invoice_number = str(line.invoice_number).strip() if line.invoice_number else ""
+            partner_vat = str(line.partner_vat).strip() if line.partner_vat else ""
+            
+            if not invoice_number or not partner_vat:
+                line.exists = False
+                continue
+                
             # Determine move types based on journal type
             if line.wizard_id.journal_id.type == "sale":
                 move_types = ["out_refund", "out_invoice"]
@@ -49,15 +57,28 @@ class AfipImportWizardLine(models.TransientModel):
 
             # Search using l10n_latam_document_number for exact match
             # This is the field where the invoice number is actually stored
-            existing_invoice = line.env["account.move"].search(
-                [
+            # Verificar que el campo existe en el modelo antes de usarlo
+            move_model = line.env["account.move"]
+            has_l10n_field = hasattr(move_model, '_fields') and 'l10n_latam_document_number' in move_model._fields
+            
+            if has_l10n_field:
+                # Buscar usando l10n_latam_document_number (método preferido)
+                domain = [
                     ("move_type", "in", move_types),
-                    ("l10n_latam_document_number", "=", line.invoice_number),
-                    ("partner_id.vat", "=", line.partner_vat),
+                    ("l10n_latam_document_number", "=", invoice_number),
+                    ("partner_id.vat", "=", partner_vat),
                     ("company_id", "=", line.wizard_id.company_id.id),
-                ],
-                limit=1,
-            )
+                ]
+                existing_invoice = move_model.search(domain, limit=1)
+            else:
+                # Si el campo no existe, usar name como alternativa
+                domain = [
+                    ("move_type", "in", move_types),
+                    ("partner_id.vat", "=", partner_vat),
+                    ("company_id", "=", line.wizard_id.company_id.id),
+                    ("name", "ilike", invoice_number),
+                ]
+                existing_invoice = move_model.search(domain, limit=1)
 
             line.exists = bool(existing_invoice)
 
