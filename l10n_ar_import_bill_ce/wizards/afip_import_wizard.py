@@ -1,4 +1,4 @@
-﻿import math
+import math
 
 from odoo import fields, models
 from odoo.exceptions import UserError
@@ -8,7 +8,7 @@ class AfipImportWizard(models.TransientModel):
     _name = "afip.import.wizard"
     _description = "Importador de Facturas de Proveedor desde Excel AFIP"
 
-    line_ids = fields.One2many("afip.import.wizard.line", "wizard_id", string="LÃ­neas de Facturas de Facturas")
+    line_ids = fields.One2many("afip.import.wizard.line", "wizard_id", string="Líneas de Facturas")
     company_id = fields.Many2one("res.company", required=True)
     journal_id = fields.Many2one("account.journal", required=True)
     auto_validate = fields.Boolean(string="Autovalidar Facturas Importadas", default=False)
@@ -44,10 +44,18 @@ class AfipImportWizard(models.TransientModel):
         # Determine tax use type based on journal type
         tax_use_type = "sale" if self.journal_id.type == "sale" else "purchase"
         # Buscar impuestos en la empresa actual y en empresas relacionadas (padre e hijas)
-        # Usar child_of para incluir la empresa y sus empresas padre
+        # Obtener todas las empresas relacionadas (padre e hijas)
+        company_ids = [self.company_id.id]
+        # Agregar empresa padre si existe
+        if self.company_id.parent_id:
+            company_ids.append(self.company_id.parent_id.id)
+        # Agregar empresas hijas
+        if self.company_id.child_ids:
+            company_ids.extend(self.company_id.child_ids.ids)
+        
         base_domain = [
             ("price_include", "=", False),
-            ("company_id", "child_of", self.company_id.id),
+            ("company_id", "in", company_ids),
             ("type_tax_use", "=", tax_use_type),
         ]
         tax_iva_no_corresponde = self.env["account.tax"].search(
