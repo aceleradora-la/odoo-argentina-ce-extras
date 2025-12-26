@@ -43,9 +43,11 @@ class AfipImportWizard(models.TransientModel):
         new_moves = self.env["account.move"]
         # Determine tax use type based on journal type
         tax_use_type = "sale" if self.journal_id.type == "sale" else "purchase"
+        # Buscar impuestos en la empresa actual y en empresas relacionadas (padre e hijas)
+        # Usar child_of para incluir la empresa y sus empresas padre
         base_domain = [
             ("price_include", "=", False),
-            ("company_id", "=", self.company_id.id),
+            ("company_id", "child_of", self.company_id.id),
             ("type_tax_use", "=", tax_use_type),
         ]
         tax_iva_no_corresponde = self.env["account.tax"].search(
@@ -78,9 +80,11 @@ class AfipImportWizard(models.TransientModel):
                 "currency_id": currency.id,
                 "journal_id": self.journal_id.id,
                 "company_id": self.company_id.id,
-                "l10n_ar_afip_auth_code": line.cae,
                 "line_ids": [],
             }
+            # Agregar l10n_ar_afip_auth_code solo si el campo existe (puede no estar en Community)
+            if hasattr(self.env["account.move"], "_fields") and "l10n_ar_afip_auth_code" in self.env["account.move"]._fields:
+                move_vals["l10n_ar_afip_auth_code"] = line.cae
 
             # Agregamos la linea con IVA y otros tributos (si existen).
             vat_rates = [
@@ -94,12 +98,14 @@ class AfipImportWizard(models.TransientModel):
             for vat_rate, vat_amount, neto_amount in vat_rates:
                 if not math.isnan(vat_amount) and vat_amount > 0 and not math.isnan(neto_amount) and neto_amount > 0:
                     # Search for the specific VAT tax
+                    # Buscar primero en la empresa actual, luego en empresas relacionadas
                     iva_tax = self.env["account.tax"].search(
                         base_domain
                         + [
                             ("amount", "=", vat_rate),
                             ("tax_group_id.l10n_ar_vat_afip_code", "!=", False),
                         ],
+                        order="company_id",  # Priorizar impuestos de la empresa actual
                         limit=1,
                     )
 
