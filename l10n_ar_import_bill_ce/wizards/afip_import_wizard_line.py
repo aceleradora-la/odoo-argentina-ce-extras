@@ -62,52 +62,28 @@ class AfipImportWizardLine(models.TransientModel):
             move_model = line.env["account.move"]
             
             # Buscar usando l10n_latam_document_number (método preferido)
-            # Si el campo no existe o está vacío, la búsqueda no encontrará nada (correcto)
+            # Buscar facturas del mismo proveedor y tipo, luego verificar manualmente el número
+            # para evitar problemas con espacios o formato diferente
             domain = [
                 ("move_type", "in", move_types),
-                ("l10n_latam_document_number", "=", invoice_number),
                 ("partner_id.vat", "=", partner_vat),
                 ("company_id", "=", line.wizard_id.company_id.id),
             ]
-            existing_invoice = move_model.search(domain, limit=1)
+            candidates = move_model.search(domain, limit=100)
             
-            # Si no encontramos y el campo podría estar vacío, usar name/display_name como fallback
-            # pero extrayendo el número del formato "FA-A 00001-00000539" y comparándolo exactamente
-            if not existing_invoice:
-                # Buscar facturas del mismo proveedor y tipo
-                domain_fallback = [
-                    ("move_type", "in", move_types),
-                    ("partner_id.vat", "=", partner_vat),
-                    ("company_id", "=", line.wizard_id.company_id.id),
-                ]
-                candidates = move_model.search(domain_fallback, limit=100)
-                
-                # Extraer el número del formato "FA-A 00001-00000539" o similar
-                # El formato típico es: "PREFIJO NÚMERO" donde NÚMERO es "XXXXX-XXXXXXXX"
-                for candidate in candidates:
-                    name = candidate.name or ""
-                    display_name = candidate.display_name or ""
-                    
-                    # Extraer el número del formato (buscar el patrón "XXXXX-XXXXXXXX" al final)
-                    # El número siempre tiene el formato: punto de venta (5 dígitos) - número (8 dígitos)
-                    number_pattern = r'(\d{5}-\d{8})'
-                    
-                    # Buscar el número en name
-                    name_match = re.search(number_pattern, name)
-                    if name_match:
-                        extracted_number = name_match.group(1)
-                        if extracted_number == invoice_number:
-                            existing_invoice = candidate
-                            break
-                    
-                    # Buscar el número en display_name
-                    display_match = re.search(number_pattern, display_name)
-                    if display_match:
-                        extracted_number = display_match.group(1)
-                        if extracted_number == invoice_number:
-                            existing_invoice = candidate
-                            break
-
+            # Verificar manualmente que el número coincida exactamente
+            # (normalizando espacios para evitar problemas de formato)
+            for candidate in candidates:
+                doc_number = getattr(candidate, 'l10n_latam_document_number', False)
+                if doc_number:
+                    # Normalizar el número del campo (eliminar espacios)
+                    normalized_doc_number = str(doc_number).strip()
+                    if normalized_doc_number == invoice_number:
+                        existing_invoice = candidate
+                        break
+            
+            # Solo usar l10n_latam_document_number para evitar falsos positivos
+            # Si el campo está vacío o no coincide, la factura no existe (correcto)
             line.exists = bool(existing_invoice)
 
     def _get_partner_by_vat(self):
