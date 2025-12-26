@@ -64,6 +64,7 @@ class AfipImportWizardLine(models.TransientModel):
             # Buscar usando l10n_latam_document_number (método preferido)
             # Buscar facturas del mismo proveedor y tipo, luego verificar manualmente el número
             # para evitar problemas con espacios o formato diferente
+            existing_invoice = False
             domain = [
                 ("move_type", "in", move_types),
                 ("partner_id.vat", "=", partner_vat),
