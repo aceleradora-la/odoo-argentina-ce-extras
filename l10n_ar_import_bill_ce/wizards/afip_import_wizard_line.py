@@ -62,17 +62,29 @@ class AfipImportWizardLine(models.TransientModel):
             move_model = line.env["account.move"]
             
             # Buscar usando l10n_latam_document_number (método preferido)
-            # Si el campo no existe o está vacío, la búsqueda no encontrará nada (correcto)
+            # Buscar facturas del mismo proveedor y tipo, luego verificar manualmente el número
+            # para evitar problemas con espacios o formato diferente
+            existing_invoice = False
             domain = [
                 ("move_type", "in", move_types),
-                ("l10n_latam_document_number", "=", invoice_number),
                 ("partner_id.vat", "=", partner_vat),
                 ("company_id", "=", line.wizard_id.company_id.id),
             ]
-            existing_invoice = move_model.search(domain, limit=1)
+            candidates = move_model.search(domain, limit=100)
+            
+            # Verificar manualmente que el número coincida exactamente
+            # (normalizando espacios para evitar problemas de formato)
+            for candidate in candidates:
+                doc_number = getattr(candidate, 'l10n_latam_document_number', False)
+                if doc_number:
+                    # Normalizar el número del campo (eliminar espacios)
+                    normalized_doc_number = str(doc_number).strip()
+                    if normalized_doc_number == invoice_number:
+                        existing_invoice = candidate
+                        break
             
             # Solo usar l10n_latam_document_number para evitar falsos positivos
-            # Si el campo está vacío, la factura no existe (correcto)
+            # Si el campo está vacío o no coincide, la factura no existe (correcto)
             line.exists = bool(existing_invoice)
 
     def _get_partner_by_vat(self):
