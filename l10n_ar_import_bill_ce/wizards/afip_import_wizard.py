@@ -8,7 +8,7 @@ class AfipImportWizard(models.TransientModel):
     _name = "afip.import.wizard"
     _description = "Importador de Facturas de Proveedor desde Excel AFIP"
 
-    line_ids = fields.One2many("afip.import.wizard.line", "wizard_id", string="L√≠neas de Facturas")
+    line_ids = fields.One2many("afip.import.wizard.line", "wizard_id", string="L+°neas de Facturas")
     company_id = fields.Many2one("res.company", required=True)
     journal_id = fields.Many2one("account.journal", required=True)
     auto_validate = fields.Boolean(string="Autovalidar Facturas Importadas", default=False)
@@ -33,7 +33,7 @@ class AfipImportWizard(models.TransientModel):
                 "type": "ir.actions.client",
                 "tag": "display_notification",
                 "params": {
-                    "title": "Importaci√≥n completada",
+                    "title": "Importaci+¶n completada",
                     "message": "No se crearon facturas: todas las facturas requeridas ya existen.",
                     "type": "warning",
                     "sticky": False,
@@ -113,7 +113,7 @@ class AfipImportWizard(models.TransientModel):
                         move_vals["line_ids"].append(line._create_line(neto_amount, [iva_tax.id]))
                     else:
                         raise UserError(
-                            f"No se encontr√≥ un impuesto de IVA para la al√≠cuota {vat_rate}%. "
+                            f"No se encontr+¶ un impuesto de IVA para la al+°cuota {vat_rate}%. "
                             "Revise si este impuesto esta deshabilitado."
                         )
 
@@ -121,7 +121,7 @@ class AfipImportWizard(models.TransientModel):
             if not math.isnan(line.exento) and line.exento > 0:
                 if not tax_iva_exento:
                     raise UserError(
-                        "No se encontr√≥ un impuesto de IVA Exento. "
+                        "No se encontr+¶ un impuesto de IVA Exento. "
                         "Debe crear un impuesto de compras con el grupo 'IVA Exento'."
                     )
                 move_vals["line_ids"].append(line._create_line(line.exento, [tax_iva_exento.id]))
@@ -130,7 +130,7 @@ class AfipImportWizard(models.TransientModel):
             if not math.isnan(line.no_gravado) and line.no_gravado > 0:
                 if not tax_iva_no_gravado:
                     raise UserError(
-                        "No se encontr√≥ un impuesto de IVA No Gravado. "
+                        "No se encontr+¶ un impuesto de IVA No Gravado. "
                         "Debe crear un impuesto de compras con el grupo 'IVA No Gravado'."
                     )
                 move_vals["line_ids"].append(line._create_line(line.no_gravado, [tax_iva_no_gravado.id]))
@@ -148,7 +148,7 @@ class AfipImportWizard(models.TransientModel):
 
             # Agregamos el rate despues de crear la factura, para que Odoo no lo recalcule
             if line.currency_rate and line.currency_rate != 1:
-                # Verificar si existe el wizard de cambio de tasa (puede ser de un m√≥dulo adicional)
+                # Verificar si existe el wizard de cambio de tasa (puede ser de un m+¶dulo adicional)
                 if "account.move.change.rate" in self.env:
                     wizard = self.env["account.move.change.rate"].create(
                         {
@@ -162,15 +162,15 @@ class AfipImportWizard(models.TransientModel):
                     # Si no existe el wizard, actualizar directamente la tasa usando el contexto
                     move.with_context(override_currency_rate=line.currency_rate)._recompute_dynamic_lines()
 
-            # Si tiene otros tributos, agregamos una l√≠nea adicional con el impuesto
+            # Si tiene otros tributos, agregamos una l+°nea adicional con el impuesto
             if line.otros_tributos > 0:
                 if not tax_otros_tributos:
                     raise UserError(
-                        "No se encontr√≥ un impuesto de Otros Tributos. "
+                        "No se encontr+¶ un impuesto de Otros Tributos. "
                         "Debe crear un impuesto de compras con el grupo de tributo 'Otros Tributos'."
                     )
 
-                # Agregar l√≠nea de impuesto directamente a la factura
+                # Agregar l+°nea de impuesto directamente a la factura
                 # Obtener la cuenta de impuestos
                 tax_account = (
                     tax_otros_tributos.invoice_repartition_line_ids.filtered(
@@ -179,10 +179,10 @@ class AfipImportWizard(models.TransientModel):
                     or move.journal_id.default_account_id
                 )
                 
-                # Determinar si es cr√©dito o d√©bito seg√∫n el tipo de movimiento
+                # Determinar si es cr+Ædito o d+Æbito seg+¶n el tipo de movimiento
                 is_credit = move.move_type in ["in_invoice", "out_refund"]
                 
-                # Crear nueva l√≠nea de impuesto
+                # Crear nueva l+°nea de impuesto
                 move.write(
                     {
                         "line_ids": [
@@ -227,7 +227,7 @@ class AfipImportWizard(models.TransientModel):
             "domain": [("id", "in", new_moves.ids)],
             "target": "current",
             "views": [
-                [self.env.ref("l10n_ar_import_bill.view_account_move_list_bill_import").id, "list"],
+                [self.env.ref("l10n_ar_import_bill_ce.view_account_move_list_bill_import").id, "list"],
                 [False, "form"],
             ],
         }
