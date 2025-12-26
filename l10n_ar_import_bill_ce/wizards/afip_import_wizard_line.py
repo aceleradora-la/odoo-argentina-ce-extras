@@ -57,29 +57,20 @@ class AfipImportWizardLine(models.TransientModel):
 
             # Search using l10n_latam_document_number for exact match
             # This is the field where the invoice number is actually stored
-            # Verificar que el campo existe en el modelo antes de usarlo
             move_model = line.env["account.move"]
-            has_l10n_field = hasattr(move_model, '_fields') and 'l10n_latam_document_number' in move_model._fields
             
-            if has_l10n_field:
-                # Buscar usando l10n_latam_document_number (método preferido)
-                domain = [
-                    ("move_type", "in", move_types),
-                    ("l10n_latam_document_number", "=", invoice_number),
-                    ("partner_id.vat", "=", partner_vat),
-                    ("company_id", "=", line.wizard_id.company_id.id),
-                ]
-                existing_invoice = move_model.search(domain, limit=1)
-            else:
-                # Si el campo no existe, usar name como alternativa
-                domain = [
-                    ("move_type", "in", move_types),
-                    ("partner_id.vat", "=", partner_vat),
-                    ("company_id", "=", line.wizard_id.company_id.id),
-                    ("name", "ilike", invoice_number),
-                ]
-                existing_invoice = move_model.search(domain, limit=1)
-
+            # Buscar usando l10n_latam_document_number (método preferido)
+            # Si el campo no existe o está vacío, la búsqueda no encontrará nada (correcto)
+            domain = [
+                ("move_type", "in", move_types),
+                ("l10n_latam_document_number", "=", invoice_number),
+                ("partner_id.vat", "=", partner_vat),
+                ("company_id", "=", line.wizard_id.company_id.id),
+            ]
+            existing_invoice = move_model.search(domain, limit=1)
+            
+            # Si no encontramos, verificar que realmente no existe
+            # (no usar fallback para evitar falsos positivos)
             line.exists = bool(existing_invoice)
 
     def _get_partner_by_vat(self):
