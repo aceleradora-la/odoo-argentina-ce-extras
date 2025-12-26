@@ -71,8 +71,43 @@ class AfipImportWizardLine(models.TransientModel):
             ]
             existing_invoice = move_model.search(domain, limit=1)
             
-            # Si no encontramos, verificar que realmente no existe
-            # (no usar fallback para evitar falsos positivos)
+            # Si no encontramos y el campo podría estar vacío, usar name/display_name como fallback
+            # pero extrayendo el número del formato "FA-A 00001-00000539" y comparándolo exactamente
+            if not existing_invoice:
+                # Buscar facturas del mismo proveedor y tipo
+                domain_fallback = [
+                    ("move_type", "in", move_types),
+                    ("partner_id.vat", "=", partner_vat),
+                    ("company_id", "=", line.wizard_id.company_id.id),
+                ]
+                candidates = move_model.search(domain_fallback, limit=100)
+                
+                # Extraer el número del formato "FA-A 00001-00000539" o similar
+                # El formato típico es: "PREFIJO NÚMERO" donde NÚMERO es "XXXXX-XXXXXXXX"
+                for candidate in candidates:
+                    name = candidate.name or ""
+                    display_name = candidate.display_name or ""
+                    
+                    # Extraer el número del formato (buscar el patrón "XXXXX-XXXXXXXX" al final)
+                    # El número siempre tiene el formato: punto de venta (5 dígitos) - número (8 dígitos)
+                    number_pattern = r'(\d{5}-\d{8})'
+                    
+                    # Buscar el número en name
+                    name_match = re.search(number_pattern, name)
+                    if name_match:
+                        extracted_number = name_match.group(1)
+                        if extracted_number == invoice_number:
+                            existing_invoice = candidate
+                            break
+                    
+                    # Buscar el número en display_name
+                    display_match = re.search(number_pattern, display_name)
+                    if display_match:
+                        extracted_number = display_match.group(1)
+                        if extracted_number == invoice_number:
+                            existing_invoice = candidate
+                            break
+
             line.exists = bool(existing_invoice)
 
     def _get_partner_by_vat(self):
