@@ -1,3 +1,5 @@
+import re
+
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 
@@ -41,6 +43,14 @@ class AfipImportWizardLine(models.TransientModel):
                 line.exists = False
                 continue
                 
+            # Normalizar el número de factura (eliminar espacios)
+            invoice_number = str(line.invoice_number).strip() if line.invoice_number else ""
+            partner_vat = str(line.partner_vat).strip() if line.partner_vat else ""
+            
+            if not invoice_number or not partner_vat:
+                line.exists = False
+                continue
+                
             # Determine move types based on journal type
             if line.wizard_id.journal_id.type == "sale":
                 move_types = ["out_refund", "out_invoice"]
@@ -49,15 +59,47 @@ class AfipImportWizardLine(models.TransientModel):
 
             # Search using l10n_latam_document_number for exact match
             # This is the field where the invoice number is actually stored
-            existing_invoice = line.env["account.move"].search(
-                [
+            move_model = line.env["account.move"]
+            
+            # Buscar usando l10n_latam_document_number (método preferido)
+            # Si el campo no existe o está vacío, la búsqueda no encontrará nada (correcto)
+            domain = [
+                ("move_type", "in", move_types),
+                ("l10n_latam_document_number", "=", invoice_number),
+                ("partner_id.vat", "=", partner_vat),
+                ("company_id", "=", line.wizard_id.company_id.id),
+            ]
+            existing_invoice = move_model.search(domain, limit=1)
+            
+            # Si no encontramos y el campo podría estar vacío, usar name/display_name como fallback
+            # pero verificando que el número completo esté presente (no solo coincidencia parcial)
+            if not existing_invoice:
+                # Buscar facturas del mismo proveedor y tipo
+                domain_fallback = [
                     ("move_type", "in", move_types),
-                    ("l10n_latam_document_number", "=", line.invoice_number),
-                    ("partner_id.vat", "=", line.partner_vat),
+                    ("partner_id.vat", "=", partner_vat),
                     ("company_id", "=", line.wizard_id.company_id.id),
-                ],
-                limit=1,
-            )
+                ]
+                candidates = move_model.search(domain_fallback, limit=100)
+                
+                # Verificar manualmente que el número esté en name o display_name
+                # El número debe estar completo, no parcial (ej: "00001-00000539" no debe coincidir con "00001-000005390")
+                for candidate in candidates:
+                    name = candidate.name or ""
+                    display_name = candidate.display_name or ""
+                    
+                    # Verificar que el número completo esté presente en name o display_name
+                    if invoice_number in name or invoice_number in display_name:
+                        # Verificar que no sea una coincidencia parcial usando regex
+                        pattern = re.escape(invoice_number)
+                        # Verificar que el número esté completo (no seguido de más dígitos)
+                        # Debe estar precedido por guión o espacio, y no seguido de dígitos
+                        if (re.search(r'[-\s]' + pattern + r'(?![0-9])', name) or \
+                            re.search(r'[-\s]' + pattern + r'(?![0-9])', display_name) or \
+                            name.endswith(invoice_number) or \
+                            display_name.endswith(invoice_number)):
+                            existing_invoice = candidate
+                            break
 
             line.exists = bool(existing_invoice)
 
