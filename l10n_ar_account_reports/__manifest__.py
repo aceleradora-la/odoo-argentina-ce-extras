@@ -31,6 +31,7 @@
         # Removed Enterprise deps: account_reports, l10n_ar_reports
     ],
     "data": [
+        "security/ir.model.access.csv",
         "data/tags_data.xml",
         "data/account.account.tag.csv",
         "views/l10n_ar_vat_book_wizard_view.xml",
