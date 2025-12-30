@@ -246,38 +246,13 @@ class AfipImportWizard(models.TransientModel):
                     
                     raise UserError(error_msg)
 
-                # Agregar línea de impuesto directamente a la factura
-                # Obtener la cuenta de impuestos
-                tax_account = (
-                    tax_otros_tributos.invoice_repartition_line_ids.filtered(
-                        lambda l: l.repartition_type == "tax"
-                    )[:1].account_id
-                    or move.journal_id.default_account_id
-                )
-                
-                # Determinar si es crédito o débito según el tipo de movimiento
-                is_credit = move.move_type in ["in_invoice", "out_refund"]
-                
-                # Crear nueva línea de impuesto
+                # Agregar línea de producto con el impuesto "Otros Tributos"
+                # En Community Edition, los impuestos se agregan a líneas de producto
+                # Odoo generará automáticamente la línea de impuesto correspondiente
                 move.write(
                     {
                         "line_ids": [
-                            (
-                                0,
-                                0,
-                                {
-                                    "name": tax_otros_tributos.name,
-                                    "partner_id": partner.id,
-                                    "account_id": tax_account.id,
-                                    "tax_base_amount": 0.0,
-                                    "tax_repartition_line_id": tax_otros_tributos.invoice_repartition_line_ids.filtered(
-                                        lambda l: l.repartition_type == "tax"
-                                    )[:1].id,
-                                    "tax_line_id": tax_otros_tributos.id,
-                                    "credit": line.otros_tributos if is_credit else 0.0,
-                                    "debit": line.otros_tributos if not is_credit else 0.0,
-                                },
-                            )
+                            line._create_line(line.otros_tributos, [tax_otros_tributos.id])
                         ]
                     }
                 )
