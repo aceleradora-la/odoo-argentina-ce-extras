@@ -948,7 +948,18 @@ class AccountJournal(models.Model):
             tax = line._get_settlement_tax()
             if tax.l10n_ar_withholding_payment_type:
                 # 01 --> retención ganancias
-                if tax.l10n_ar_tax_type in ["earnings", "earnings_scale"]:
+                # En Community Edition, l10n_ar_tax_type puede no existir
+                # Verificamos si el campo existe, y si no, intentamos identificar por nombre del grupo
+                is_earnings_tax = False
+                if hasattr(tax, 'l10n_ar_tax_type') and tax.l10n_ar_tax_type in ["earnings", "earnings_scale"]:
+                    is_earnings_tax = True
+                elif tax.tax_group_id:
+                    # Intentar identificar por nombre del grupo de impuestos
+                    group_name_lower = (tax.tax_group_id.name or "").lower()
+                    if any(keyword in group_name_lower for keyword in ["ganancia", "earnings", "profit"]):
+                        is_earnings_tax = True
+                
+                if is_earnings_tax:
                     content += "0217"
                     regimen = tax.l10n_ar_code
                     # necesitamos lo de filter porque hay dos regimenes que le
