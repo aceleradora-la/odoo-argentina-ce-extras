@@ -860,3 +860,166 @@ class AccountJournal(models.Model):
                 "txt_content": ret,
             },
         ]
+
+    def sicore_aplicado_files_values(self, move_lines):
+        self.ensure_one()
+
+        # build txt file
+        content = ""
+
+        for line in move_lines.filtered("amount_currency").sorted(key=lambda r: (r.date, r.id)):
+            partner = line.partner_id
+            if not partner.l10n_latam_identification_type_id.l10n_ar_afip_code:
+                raise ValidationError(
+                    _('EL tipo de identificación "%s" no tiene código de arca configurado')
+                    % (partner.l10n_latam_identification_type_id.name)
+                )
+            if not partner.vat:
+                raise ValidationError(
+                    _('El partner "%s" (id %s) no tiene número de identificación establecido')
+                    % (partner.name, partner.id)
+                )
+
+            payment = line.payment_id
+            move = line.move_id
+
+            # si tengo payment es una retención, sino es una percepción y tengo que sacar la información de la factura (del move)
+            if payment:
+                # Codigo del Comprobante         [ 2]
+                content += (
+                    (payment.payment_type == "inbound" and "02")
+                    or (payment.payment_type == "outbound" and "06")
+                    or "00"
+                )
+
+                # Fecha Emision Comprobante      [10] (dd/mm/yyyy)
+                content += fields.Date.from_string(line.date).strftime("%d/%m/%Y")
+                # Numero Comprobante            [16]
+                content += "%016d" % int(re.sub("[^0-9]", "", move.l10n_latam_document_number))
+                # Importe del comprobante
+                codop = "1"
+                issue_date = payment.date
+                amount_tot = abs(payment.payment_total)
+                base_amount = line.withholding_id.base_amount
+
+            elif move.is_invoice():
+                # Codigo del Comprobante         [ 2]
+                tipodoc = int(move.l10n_latam_document_type_id.code)
+                es_nc = False
+
+                if tipodoc in [1, 6, 19, 51, 81, 82, 118, 201, 206]:
+                    # Factura
+                    content += "01"
+                elif tipodoc in [4, 9, 54]:
+                    # Recibo
+                    content += "02"
+                elif tipodoc in [3, 8, 21, 53, 43, 44, 110, 112, 113, 114, 119, 203, 208]:
+                    # Nota de Crédito
+                    content += "03"
+                    es_nc = True
+                elif tipodoc in [2, 7, 20, 52, 45, 46, 115, 116, 120, 202, 207]:
+                    # Nota de Débito
+                    content += "04"
+                else:
+                    # Otro comprobante
+                    content += "05"
+
+                # Fecha Emision Comprobante      [10] (dd/mm/yyyy)
+                content += fields.Date.from_string(move.invoice_date).strftime("%d/%m/%Y")
+                # Numero Comprobante            [16]
+                # content += '%016d' % int(re.sub('[^0-9]', '', move.l10n_latam_document_number))
+                content += "%05d" % int(re.sub("[^0-9]", "", move.l10n_latam_document_number)[:5])
+                content += "%011d" % int(re.sub("[^0-9]", "", move.l10n_latam_document_number)[5:])
+                issue_date = move.invoice_date
+                # si la percepción es sobre una nota de crédito informamos el importe de la percepción
+                # aclaración: no tenemos ningún respaldo documental respecto a esto, solo lo hicimos para
+                # solucionar la inconsistencia del ticket 61671
+                base_amount = line.tax_base_amount if es_nc == False else line.balance
+                codop = "2"
+                # Importe del comprobante
+                amount_tot = abs(move.amount_total_signed)
+
+            # Importe Comprobante            [16]
+            content += "%016.2f" % amount_tot
+            # Codigo de Impuesto             [ 4]
+            # Codigo de Regimen              [ 3]
+            codcond = "01"
+
+            tax = line._get_settlement_tax()
+            if tax.l10n_ar_withholding_payment_type:
+                # 01 --> retención ganancias
+                if tax.l10n_ar_tax_type in ["earnings", "earnings_scale"]:
+                    content += "0217"
+                    regimen = tax.l10n_ar_code
+                    # necesitamos lo de filter porque hay dos regimenes que le
+                    # agregamos caracteres
+                    content += regimen and "%03d" % int("".join(filter(str.isdigit, str(regimen)))) or "000"
+                # 02 --> retención iva
+                else:
+                    content += "0767"
+                    # por ahora el unico implementado es para factura M
+                    content += "%03d" % int(tax.l10n_ar_code) if tax.l10n_ar_code else "499"
+                    if tax.l10n_ar_code == "602":
+                        codcond = "13" if tax.amount == 3 else "14"
+                    # Si el código de régimen es 214 entonces el código de condición debe ser '00'.
+                    # Más información en archivo l10n_ar_account_tax_settlement/data/relaciones-codigos-sicore.csv
+                    if tax.l10n_ar_code == "214":
+                        codcond = "00"
+            else:
+                # Percepción de IVA
+                content += "0767"
+                content += "%03d" % int(
+                    tax.l10n_ar_code
+                )  # (ver account tax) DUDA cómo le aplico el código de régimen a las facturas viejas
+                if tax.l10n_ar_code == "602":
+                    codcond = "13" if tax.amount == 3 else "14"
+                # Si el código de régimen es 493 entonces el código de condición debe ser '00'.
+                # Más información en archivo l10n_ar_account_tax_settlement/data/relaciones-codigos-sicore.xlsx
+                elif tax.l10n_ar_code == "493":
+                    codcond = "00"
+
+            # Codigo de Operacion            [ 1]
+            content += codop  # TODO: ???? DUDA: SERÍA PARA VER SI ES RETENCION O PERCEPCION
+
+            # Base de Calculo                [14]
+            content += "%014.2f" % base_amount
+
+            # Fecha Emision Retencion        [10] (dd/mm/yyyy)
+            content += fields.Date.from_string(issue_date).strftime("%d/%m/%Y")
+
+            # Codigo de Condicion            [ 2]
+            content += codcond  # TODO: ???? ver tabla de condición sicore
+
+            # Retención Pract. a Suj. ..     [ 1]
+            content += "0"  # TODO: ????
+
+            # Importe de Retencion           [14] (también se usa para importe de percepción)
+            content += "%014.2f" % abs(line.balance)
+
+            # Porcentaje de Exclusion        [ 6]
+            content += "%06.2f" % tax.porcentaje_exclusion or "000.00"
+
+            # Fecha Emision Boletin          [10] (dd/mm/yyyy)
+            content += fields.Date.from_string(issue_date).strftime("%d/%m/%Y")
+
+            # Tipo Documento Retenido        [ 2]
+            content += "%02d" % int(partner.l10n_latam_identification_type_id.l10n_ar_afip_code)
+
+            # Numero Documento Retenido      [20]
+            vat = re.sub(r"\D", "", partner.vat)
+            content += vat.ljust(20)
+
+            # Numero Certificado Original    [14]
+            content += "%014d" % 0  # TODO: ????
+
+            content += "\r\n"
+
+        return [
+            {
+                "txt_filename": "SICORE Aplicado.txt",
+                # 'txt_filename': 'SICORE_%s_%s_%s.txt' % (
+                #     re.sub(r'[^\d\w]', '', self.company_id.name),
+                #     self.from_date, self.to_date),
+                "txt_content": content,
+            }
+        ]
