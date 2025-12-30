@@ -56,11 +56,6 @@ class AfipImportWizard(models.TransientModel):
         base_domain = [
             ("price_include", "=", False),
             ("company_id", "in", company_ids),
-        # Usar child_of para incluir la empresa y sus empresas padre
-        base_domain = [
-            ("price_include", "=", False),
-            ("company_id", "child_of", self.company_id.id),
-            ("type_tax_use", "=", tax_use_type),
         ]
         tax_iva_no_corresponde = self.env["account.tax"].search(
             base_domain + [("tax_group_id.l10n_ar_vat_afip_code", "=", "0")], limit=1
