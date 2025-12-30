@@ -196,8 +196,9 @@ class AfipImportWizard(models.TransientModel):
                     if hasattr(wizard, "confirm"):
                         wizard.confirm()
                 else:
-                    # Si no existe el wizard, actualizar directamente la tasa usando el contexto
-                    move.with_context(override_currency_rate=line.currency_rate)._recompute_dynamic_lines()
+                    # Si no existe el wizard, Odoo recalculará automáticamente al guardar
+                    # No necesitamos hacer nada adicional en Community Edition
+                    pass
 
             # Si tiene otros tributos, agregamos una línea adicional con el impuesto
             if line.otros_tributos > 0:
@@ -274,7 +275,9 @@ class AfipImportWizard(models.TransientModel):
                     }
                 )
                 # Recalcular los totales
-                move._recompute_dynamic_lines(recompute_all_taxes=True)
+                # En Community Edition, Odoo recalcula automáticamente los totales al guardar
+                # Hacemos un write vacío para forzar el guardado y recálculo
+                move.write({})
 
             # Confirm the invoice only if auto_validate is True and the total matches line.amount_total
             if self.auto_validate and abs(move.amount_total - line.amount_total) <= 0.10 and line.amount_total > 0:
