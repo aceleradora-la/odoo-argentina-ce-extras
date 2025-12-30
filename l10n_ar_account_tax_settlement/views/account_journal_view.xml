@@ -6,7 +6,7 @@
         <field name="inherit_id" ref="account.view_account_journal_form"/>
         <field name="arch" type="xml">
             <field name="type" position="after">
-                <field name="tax_settlement" invisible="1"/>
+                <field name="tax_settlement" invisible="type != 'general'"/>
                 <field name="settlement_tax" invisible="type != 'general'"/>
             </field>
         </field>

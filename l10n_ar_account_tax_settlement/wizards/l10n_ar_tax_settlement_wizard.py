@@ -14,7 +14,7 @@ class L10nArTaxSettlementWizard(models.TransientModel):
     journal_id = fields.Many2one(
         "account.journal",
         string="Diario de Liquidación",
-        domain=[("tax_settlement", "!=", False)],
+        domain=[("settlement_tax", "!=", False)],
         required=True,
     )
     
