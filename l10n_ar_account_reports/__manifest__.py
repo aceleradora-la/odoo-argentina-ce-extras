@@ -19,7 +19,7 @@
 ##############################################################################
 {
     "name": "Accounting Reports Customized for Argentina (Community)",
-    "version": "18.0.1.0.0",
+    "version": "17.0.1.0.0",
     "category": "Accounting",
     "author": "ADHOC SA, Aceleradora-Latam",
     "website": "www.adhoc.com.ar",
