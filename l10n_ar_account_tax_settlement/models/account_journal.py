@@ -55,12 +55,7 @@ class AccountJournal(models.Model):
     _inherit = "account.journal"
 
     settlement_tax = fields.Selection(
-        selection_add=[
-            # ('vat', 'VAT'),
-            # ('profits', 'Profits'),
-            ("misiones", "TXT IIBB aplicado DGR Misiones"),
-            # ("drei_aplicado", "TXT DREI Aplicado"),
-        selection=[
+        [
             ("vat", "VAT"),
             ("profits", "Profits"),
             ("misiones", "TXT IIBB aplicado DGR Misiones"),
@@ -79,8 +74,8 @@ class AccountJournal(models.Model):
             ("iibb_aplicado_sircar", "TXT Perc/Ret IIBB aplicadas SIRCAR"),
             ("iibb_aplicado_dgr_mendoza", "TXT  Perc/Ret IIBB aplicado DGR Mendoza"),
             ("retenciones_iva", "TXT Retenciones/Percepciones Sufridas IVA"),
-        ]
         ],
+        string="Settlement Tax",
     )
 
     # NEW FIELD FOR COMMUNITY
