@@ -76,13 +76,28 @@ class AfipImportWizard(models.TransientModel):
         # Si no se encontró, buscar por nombre del grupo de impuestos
         if not tax_otros_tributos:
             # Buscar grupo de impuestos con nombre que contenga "Otros Tributos" o "Otro Tributo"
+            # Primero intentar sin filtro de país (más flexible)
             tribute_group = self.env["account.tax.group"].search([
                 ("name", "ilike", "otro tributo"),
-                ("country_id.code", "=", "AR"),
             ], limit=1)
+            
+            # Si no encuentra, intentar con filtro de país
+            if not tribute_group:
+                tribute_group = self.env["account.tax.group"].search([
+                    ("name", "ilike", "otro tributo"),
+                    ("country_id.code", "=", "AR"),
+                ], limit=1)
+            
+            # Si encuentra el grupo, buscar el impuesto asociado
             if tribute_group:
                 tax_otros_tributos = self.env["account.tax"].search(
                     base_domain + [("tax_group_id", "=", tribute_group.id)], limit=1
+                )
+            
+            # Si aún no encuentra, buscar directamente por nombre del impuesto (último recurso)
+            if not tax_otros_tributos:
+                tax_otros_tributos = self.env["account.tax"].search(
+                    base_domain + [("name", "ilike", "otro tributo")], limit=1
                 )
         
         tax_iva_exento = self.env["account.tax"].search(
@@ -191,15 +206,41 @@ class AfipImportWizard(models.TransientModel):
             # Si tiene otros tributos, agregamos una línea adicional con el impuesto
             if line.otros_tributos > 0:
                 if not tax_otros_tributos:
-                    raise UserError(
-                        _("No se encontró un impuesto de Otros Tributos.\n\n"
-                          "Para solucionar esto:\n"
-                          "1. Vaya a Contabilidad > Configuración > Impuestos > Grupos de Impuestos\n"
-                          "2. Busque o cree un grupo de impuestos llamado 'Otros Tributos' (o similar)\n"
-                          "3. Si el módulo l10n_ar está instalado, configure el código AFIP de tributo como '99'\n"
-                          "4. Cree un impuesto de compras/ventas asociado a ese grupo\n\n"
-                          "Valor de otros tributos en la factura: %s") % line.otros_tributos
-                    )
+                    # Buscar información de depuración
+                    debug_info = []
+                    # Buscar grupos de impuestos que puedan ser "Otros Tributos"
+                    possible_groups = self.env["account.tax.group"].search([
+                        ("name", "ilike", "tributo"),
+                    ], limit=5)
+                    if possible_groups:
+                        debug_info.append("\nGrupos de impuestos encontrados con 'tributo' en el nombre:")
+                        for group in possible_groups:
+                            debug_info.append(f"  - {group.name} (ID: {group.id})")
+                    
+                    # Buscar impuestos que puedan ser "Otros Tributos"
+                    possible_taxes = self.env["account.tax"].search([
+                        ("name", "ilike", "tributo"),
+                        ("company_id", "child_of", self.company_id.id),
+                        ("type_tax_use", "=", tax_use_type),
+                    ], limit=5)
+                    if possible_taxes:
+                        debug_info.append("\nImpuestos encontrados con 'tributo' en el nombre:")
+                        for tax in possible_taxes:
+                            debug_info.append(f"  - {tax.name} (ID: {tax.id}, Grupo: {tax.tax_group_id.name if tax.tax_group_id else 'Sin grupo'})")
+                    
+                    error_msg = _("No se encontró un impuesto de Otros Tributos.\n\n"
+                                  "Para solucionar esto:\n"
+                                  "1. Vaya a Contabilidad > Configuración > Impuestos > Grupos de Impuestos\n"
+                                  "2. Busque o cree un grupo de impuestos llamado 'Otros Tributos' (o similar)\n"
+                                  "3. Si el módulo l10n_ar está instalado, configure el código AFIP de tributo como '99'\n"
+                                  "4. Cree un impuesto de compras/ventas asociado a ese grupo\n"
+                                  "5. Asegúrese de que el impuesto esté activo y tenga el tipo correcto (%s)\n\n"
+                                  "Valor de otros tributos en la factura: %s") % (tax_use_type, line.otros_tributos)
+                    
+                    if debug_info:
+                        error_msg += "\n\n" + "\n".join(debug_info)
+                    
+                    raise UserError(error_msg)
 
                 # Agregar línea de impuesto directamente a la factura
                 # Obtener la cuenta de impuestos
