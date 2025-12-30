@@ -59,12 +59,15 @@ class AfipImportWizard(models.TransientModel):
         
         # Buscar impuesto de Otros Tributos
         # Intentar primero con l10n_ar_tribute_afip_code si existe
+        # Intentamos directamente la búsqueda; si el campo no existe, simplemente no encontrará resultados
         tax_otros_tributos = False
-        tax_group_model = self.env["account.tax.group"]
-        if hasattr(tax_group_model, "_fields") and "l10n_ar_tribute_afip_code" in tax_group_model._fields:
+        try:
             tax_otros_tributos = self.env["account.tax"].search(
                 base_domain + [("tax_group_id.l10n_ar_tribute_afip_code", "=", "99")], limit=1
             )
+        except Exception:
+            # Si el campo no existe o hay algún error, continuamos con los fallbacks
+            pass
         
         # Si no se encontró, buscar por nombre del grupo de impuestos
         if not tax_otros_tributos:
