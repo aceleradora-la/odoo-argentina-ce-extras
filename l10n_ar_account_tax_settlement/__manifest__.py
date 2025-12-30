@@ -33,6 +33,7 @@
         # Removed Enterprise deps: account_tax_settlement, l10n_ar_account_reports
     ],
     "data": [
+        "security/ir.model.access.csv",
         "data/inflation_adjustment_index.xml",
         "views/inflation_adjustmen_index_view.xml",
         "views/account_journal_view.xml",
