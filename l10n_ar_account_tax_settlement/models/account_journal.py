@@ -60,6 +60,10 @@ class AccountJournal(models.Model):
             # ('profits', 'Profits'),
             ("misiones", "TXT IIBB aplicado DGR Misiones"),
             # ("drei_aplicado", "TXT DREI Aplicado"),
+        selection=[
+            ("vat", "VAT"),
+            ("profits", "Profits"),
+            ("misiones", "TXT IIBB aplicado DGR Misiones"),
             ("sicore_aplicado", "TXT SICORE Aplicado"),
             ("iibb_sufrido", "TXT IIBB p/ SIFERE"),
             (
@@ -76,6 +80,7 @@ class AccountJournal(models.Model):
             ("iibb_aplicado_dgr_mendoza", "TXT  Perc/Ret IIBB aplicado DGR Mendoza"),
             ("retenciones_iva", "TXT Retenciones/Percepciones Sufridas IVA"),
         ]
+        ],
     )
 
     # NEW FIELD FOR COMMUNITY

@@ -1,6 +1,6 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <!-- Acción para importar facturas desde Excel -->
+    <!-- AcciÃ³n para importar facturas desde Excel -->
     <record id="action_import_bills_from_excel" model="ir.actions.act_window">
         <field name="name">Importar Facturas desde Excel</field>
         <field name="type">ir.actions.act_window</field>
@@ -10,7 +10,7 @@
         <field name="context">{}</field>
     </record>
 
-    <!-- Menú en Contabilidad -->
+    <!-- MenÃº en Contabilidad -->
     <menuitem
         id="menu_import_bills_from_excel"
         name="Importar Facturas desde Excel"
@@ -19,4 +19,5 @@
         sequence="50"
         groups="account.group_account_user"/>
 </odoo>
+
 

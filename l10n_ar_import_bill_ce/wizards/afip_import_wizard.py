@@ -1,4 +1,4 @@
-import math
+﻿import math
 
 from odoo import fields, models
 from odoo.exceptions import UserError
@@ -8,7 +8,7 @@ class AfipImportWizard(models.TransientModel):
     _name = "afip.import.wizard"
     _description = "Importador de Facturas de Proveedor desde Excel AFIP"
 
-    line_ids = fields.One2many("afip.import.wizard.line", "wizard_id", string="Líneas de Facturas")
+    line_ids = fields.One2many("afip.import.wizard.line", "wizard_id", string="LÃ­neas de Facturas de Facturas")
     company_id = fields.Many2one("res.company", required=True)
     journal_id = fields.Many2one("account.journal", required=True)
     auto_validate = fields.Boolean(string="Autovalidar Facturas Importadas", default=False)
@@ -56,6 +56,10 @@ class AfipImportWizard(models.TransientModel):
         base_domain = [
             ("price_include", "=", False),
             ("company_id", "in", company_ids),
+        # Usar child_of para incluir la empresa y sus empresas padre
+        base_domain = [
+            ("price_include", "=", False),
+            ("company_id", "child_of", self.company_id.id),
             ("type_tax_use", "=", tax_use_type),
         ]
         tax_iva_no_corresponde = self.env["account.tax"].search(
