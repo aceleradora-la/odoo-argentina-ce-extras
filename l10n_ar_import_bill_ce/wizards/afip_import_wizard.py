@@ -8,7 +8,7 @@ class AfipImportWizard(models.TransientModel):
     _name = "afip.import.wizard"
     _description = "Importador de Facturas de Proveedor desde Excel AFIP"
 
-    line_ids = fields.One2many("afip.import.wizard.line", "wizard_id", string="LÃ­neas de Facturas de Facturas")
+    line_ids = fields.One2many("afip.import.wizard.line", "wizard_id", string="Líneas de Facturas")
     company_id = fields.Many2one("res.company", required=True)
     journal_id = fields.Many2one("account.journal", required=True)
     auto_validate = fields.Boolean(string="Autovalidar Facturas Importadas", default=False)
