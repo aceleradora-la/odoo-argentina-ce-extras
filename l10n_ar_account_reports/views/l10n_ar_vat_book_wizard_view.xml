@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_l10n_ar_vat_book_wizard_form" model="ir.ui.view">
+        <field name="name">l10n_ar.vat.book.wizard.form</field>
+        <field name="model">l10n_ar.vat.book.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Generar Libro IVA Digital">
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="date_from"/>
+                            <field name="date_to"/>
+                        </group>
+                        <group>
+                            <field name="company_id" groups="base.group_multi_company"/>
+                            <field name="tax_types" widget="radio"/>
+                        </group>
+                    </group>
+                    <group invisible="not file_content">
+                        <field name="file_name" invisible="1"/>
+                        <field name="file_content" filename="file_name" readonly="1" widget="binary"/>
+                    </group>
+                </sheet>
+                <footer>
+                    <button name="action_generate" string="Generar ZIP" type="object" class="btn-primary" invisible="file_content"/>
+                    <button string="Cerrar" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_l10n_ar_vat_book_wizard" model="ir.actions.act_window">
+        <field name="name">Libro IVA Digital (TXT/CSV)</field>
+        <field name="res_model">l10n_ar.vat.book.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+
+    <menuitem id="menu_l10n_ar_vat_book_wizard"
+              name="Libro IVA Digital (Exportación)"
+              parent="l10n_ar.menu_afip_config"
+              action="action_l10n_ar_vat_book_wizard"
+              sequence="25"/>
+</odoo>
