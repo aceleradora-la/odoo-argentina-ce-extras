@@ -240,12 +240,31 @@ class AfipImportWizard(models.TransientModel):
                     raise UserError(error_msg)
 
                 # Agregar línea de producto con el impuesto "Otros Tributos"
-                # En Community Edition, los impuestos se agregan a líneas de producto
-                # Odoo generará automáticamente la línea de impuesto correspondiente
+                # Si el impuesto es fijo (amount_type='fixed'), el precio debe ser 0
+                # y el monto aparecerá en el resumen de impuestos
+                # Si el impuesto es porcentual, necesitamos calcular la base correcta
+                tax_amount_type = getattr(tax_otros_tributos, 'amount_type', 'percent')
+                
+                if tax_amount_type == 'fixed':
+                    # Impuesto fijo: precio 0, el impuesto fijo se aplica automáticamente
+                    price_unit = 0.0
+                else:
+                    # Impuesto porcentual: calcular la base para que el impuesto resulte en el monto deseado
+                    # Si amount_type es 'percent' o 'division', calculamos la base
+                    if tax_otros_tributos.amount == 0:
+                        price_unit = line.otros_tributos
+                    else:
+                        # Base = Monto deseado / (1 + tasa/100) para impuestos incluidos
+                        # O Base = Monto deseado / (tasa/100) para impuestos no incluidos
+                        if tax_otros_tributos.price_include:
+                            price_unit = line.otros_tributos / (1 + tax_otros_tributos.amount / 100)
+                        else:
+                            price_unit = line.otros_tributos / (tax_otros_tributos.amount / 100) if tax_otros_tributos.amount != 0 else line.otros_tributos
+                
                 move.write(
                     {
                         "line_ids": [
-                            line._create_line(line.otros_tributos, [tax_otros_tributos.id])
+                            line._create_line(price_unit, [tax_otros_tributos.id])
                         ]
                     }
                 )
