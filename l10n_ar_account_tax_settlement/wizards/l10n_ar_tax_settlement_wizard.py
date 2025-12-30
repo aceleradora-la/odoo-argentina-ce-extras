@@ -26,12 +26,28 @@ class L10nArTaxSettlementWizard(models.TransientModel):
         self.ensure_one()
         
         # Search for lines
-        domain = [
-            ('date', '>=', self.date_from),
-            ('date', '<=', self.date_to),
-            ('journal_id', '=', self.journal_id.id),
-            ('parent_state', '=', 'posted'),
-        ]
+        # Para SICORE, las retenciones están en los diarios de pago, no en el diario de liquidación
+        # Por lo tanto, buscamos por tag en lugar de por journal_id
+        if self.journal_id.settlement_tax == 'sicore_aplicado':
+            # Buscar el tag SICORE
+            tag_sicore = self.env.ref('l10n_ar_ux.tag_ret_perc_sicore_aplicada', raise_if_not_found=False)
+            if not tag_sicore:
+                raise ValidationError(_("No se encontró el tag 'Ret/Perc SICORE aplicada'. Verifique la configuración del módulo."))
+            
+            domain = [
+                ('date', '>=', self.date_from),
+                ('date', '<=', self.date_to),
+                ('parent_state', '=', 'posted'),
+                ('tax_repartition_line_id.tag_ids', 'in', [tag_sicore.id]),
+            ]
+        else:
+            # Para otros tipos de liquidación, usar el comportamiento original (filtrar por journal_id)
+            domain = [
+                ('date', '>=', self.date_from),
+                ('date', '<=', self.date_to),
+                ('journal_id', '=', self.journal_id.id),
+                ('parent_state', '=', 'posted'),
+            ]
         
         # Depending on logic, we might need moves or move lines.
         # The original methods in account_journal.py (e.g., iibb_aplicado_files_values) take move_lines.
