@@ -37,7 +37,7 @@
     </record>
 
     <menuitem id="menu_l10n_ar_vat_book_wizard"
-              name="Libro IVA Digital (Exportación)"
+              name="Libro IVA Digital IVA Simple"
               parent="account.menu_finance_reports"
               action="action_l10n_ar_vat_book_wizard"
               sequence="25"/>
