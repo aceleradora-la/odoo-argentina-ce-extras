@@ -38,7 +38,7 @@
 
     <menuitem id="menu_l10n_ar_vat_book_wizard"
               name="Libro IVA Digital (Exportación)"
-              parent="l10n_ar.menu_afip_config"
+              parent="account.menu_finance_reports"
               action="action_l10n_ar_vat_book_wizard"
               sequence="25"/>
 </odoo>
