@@ -1,6 +1,6 @@
 ﻿import math
 
-from odoo import fields, models
+from odoo import _, fields, models
 from odoo.exceptions import UserError
 
 
@@ -8,7 +8,7 @@ class AfipImportWizard(models.TransientModel):
     _name = "afip.import.wizard"
     _description = "Importador de Facturas de Proveedor desde Excel AFIP"
 
-    line_ids = fields.One2many("afip.import.wizard.line", "wizard_id", string="LÃ­neas de Facturas de Facturas")
+    line_ids = fields.One2many("afip.import.wizard.line", "wizard_id", string="Líneas de Facturas")
     company_id = fields.Many2one("res.company", required=True)
     journal_id = fields.Many2one("account.journal", required=True)
     auto_validate = fields.Boolean(string="Autovalidar Facturas Importadas", default=False)
@@ -56,9 +56,28 @@ class AfipImportWizard(models.TransientModel):
         tax_iva_no_gravado = self.env["account.tax"].search(
             base_domain + [("tax_group_id.l10n_ar_vat_afip_code", "=", "1")], limit=1
         )
-        tax_otros_tributos = self.env["account.tax"].search(
-            base_domain + [("tax_group_id.l10n_ar_tribute_afip_code", "=", "99")], limit=1
-        )
+        
+        # Buscar impuesto de Otros Tributos
+        # Intentar primero con l10n_ar_tribute_afip_code si existe
+        tax_otros_tributos = False
+        tax_group_model = self.env["account.tax.group"]
+        if hasattr(tax_group_model, "_fields") and "l10n_ar_tribute_afip_code" in tax_group_model._fields:
+            tax_otros_tributos = self.env["account.tax"].search(
+                base_domain + [("tax_group_id.l10n_ar_tribute_afip_code", "=", "99")], limit=1
+            )
+        
+        # Si no se encontró, buscar por nombre del grupo de impuestos
+        if not tax_otros_tributos:
+            # Buscar grupo de impuestos con nombre que contenga "Otros Tributos" o "Otro Tributo"
+            tribute_group = self.env["account.tax.group"].search([
+                ("name", "ilike", "otro tributo"),
+                ("country_id.code", "=", "AR"),
+            ], limit=1)
+            if tribute_group:
+                tax_otros_tributos = self.env["account.tax"].search(
+                    base_domain + [("tax_group_id", "=", tribute_group.id)], limit=1
+                )
+        
         tax_iva_exento = self.env["account.tax"].search(
             base_domain + [("tax_group_id.l10n_ar_vat_afip_code", "=", "2")], limit=1
         )
@@ -166,8 +185,13 @@ class AfipImportWizard(models.TransientModel):
             if line.otros_tributos > 0:
                 if not tax_otros_tributos:
                     raise UserError(
-                        "No se encontró un impuesto de Otros Tributos. "
-                        "Debe crear un impuesto de compras con el grupo de tributo 'Otros Tributos'."
+                        _("No se encontró un impuesto de Otros Tributos.\n\n"
+                          "Para solucionar esto:\n"
+                          "1. Vaya a Contabilidad > Configuración > Impuestos > Grupos de Impuestos\n"
+                          "2. Busque o cree un grupo de impuestos llamado 'Otros Tributos' (o similar)\n"
+                          "3. Si el módulo l10n_ar está instalado, configure el código AFIP de tributo como '99'\n"
+                          "4. Cree un impuesto de compras/ventas asociado a ese grupo\n\n"
+                          "Valor de otros tributos en la factura: %s") % line.otros_tributos
                     )
 
                 # Agregar línea de impuesto directamente a la factura
