@@ -37,7 +37,7 @@
 
     <menuitem id="menu_l10n_ar_tax_settlement_wizard"
               name="Generar Liquidación TXT"
-              parent="l10n_ar.menu_afip_config"
+              parent="account.menu_finance_reports"
               action="action_l10n_ar_tax_settlement_wizard"
               sequence="20"/>
 
