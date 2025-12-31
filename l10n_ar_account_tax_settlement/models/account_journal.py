@@ -7,6 +7,9 @@ from odoo import _, fields, models
 from odoo.exceptions import RedirectWarning, ValidationError
 from odoo.tools import ustr
 from odoo.tools.float_utils import float_round
+import logging
+
+_logger = logging.getLogger(__name__)
 
 #########
 # helpers
@@ -1034,3 +1037,98 @@ class AccountJournal(models.Model):
                 "txt_content": content,
             }
         ]
+
+    ###################################
+    # Métodos de generación de archivos
+    ###################################
+
+    def get_tax_settlement_files_values(self, move_lines):
+        """
+        Función que devuelve lista de diccionarios con "nombre de archivo"
+        y "contenido de archivo" para todos los apuntes seleccionados
+        Ej:
+        [{'txt_filename': 'Nombre', 'txt_content': 'Contenido'}]
+        """
+        self.ensure_one()
+        if draft_lines := move_lines.filtered(lambda x: x.move_id.state == "draft"):
+            raise ValidationError(
+                _(
+                    "Ha seleccionado apuntes contables de asientos en borrador. "
+                    "Solo puede generar el txt de apuntes de asientos publicados. Apuntes: %s"
+                )
+                % draft_lines.ids
+            )
+        if self.settlement_tax and hasattr(self, "%s_files_values" % self.settlement_tax):
+            return getattr(self, "%s_files_values" % self.settlement_tax)(move_lines)
+        return []
+
+    ###################################
+    # account.journal.dashboard methods
+    ###################################
+
+    def _get_tax_settlement_lines_domain_by_tags(self):
+        """
+        Función que devuelve apuntes contables que se liquidan con este diario
+        (liquidados o no)
+        """
+        self.ensure_one()
+        company_id = self.company_id.id
+        if self.company_id.child_ids:
+            company_id = self.env.companies.ids
+        
+        # Para SICORE, buscar por tag en lugar de por settlement_account_tag_ids
+        if self.settlement_tax == 'sicore_aplicado':
+            tag_sicore = self.env.ref('l10n_ar_ux.tag_ret_perc_sicore_aplicada', raise_if_not_found=False)
+            if not tag_sicore:
+                return [('id', '=', False)]  # No hay tag, no hay líneas
+            
+            domain = [
+                ("company_id", "in", [company_id] if isinstance(company_id, int) else company_id),
+                ("tax_repartition_line_id.tag_ids", "in", [tag_sicore.id]),
+            ]
+        else:
+            # Para otros tipos, necesitaríamos settlement_account_tag_ids que no existe en Community
+            # Por ahora, retornamos dominio vacío para otros tipos
+            # TODO: Implementar lógica para otros tipos si es necesario
+            domain = [('id', '=', False)]
+
+        if from_date := self._context.get("from_date"):
+            domain.append(("date", ">=", from_date))
+
+        if to_date := self._context.get("to_date"):
+            domain.append(("date", "<=", to_date))
+
+        return domain
+
+    def open_action(self):
+        """
+        Modificamos funcion para que si es liquidacion de impuestos devuelva accion correspondiente
+        Y si es deuda del partner muestre el partner ledger
+        """
+        if self.type == "general" and self.tax_settlement:
+            tax_settlement = self._context.get("tax_settlement", False)
+            debt_balance = self._context.get("debt_balance", False)
+            if tax_settlement:
+                # Ingresa aquí al entrar en vista Kanban en diario de liquidacion en el botoncito "Líneas a liquidar"
+                action = self.env["ir.actions.actions"]._for_xml_id(
+                    "l10n_ar_account_tax_settlement.action_account_tax_move_line"
+                )
+                action["domain"] = self._get_tax_settlement_lines_domain_by_tags()
+                return action
+            elif debt_balance and hasattr(self, 'settlement_partner_id') and self.settlement_partner_id:
+                # Ingresa aquí al entrar en vista Kanban en diario de liquidacion en el botoncito 'Saldo a pagar'
+                # En Community, puede que no exista open_partner_ledger, usar alternativa
+                if hasattr(self.settlement_partner_id, 'open_partner_ledger'):
+                    action = self.settlement_partner_id.open_partner_ledger()
+                    ctx = action.get("context", {})
+                    if isinstance(ctx, str):
+                        from odoo.tools.safe_eval import safe_eval
+                        ctx = safe_eval(ctx)
+                    ctx.update(
+                        {
+                            "default_partner_id": self.settlement_partner_id.id,
+                        }
+                    )
+                    action["context"] = ctx
+                    return action
+        return super(AccountJournal, self).open_action()

@@ -37,11 +37,13 @@
         "data/inflation_adjustment_index.xml",
         "views/inflation_adjustmen_index_view.xml",
         "views/account_journal_view.xml",
-        "views/l10n_ar_tax_settlement_wizard_view.xml",  # New Wizard view
-        "security/ir.model.access.csv",
+        "views/account_move_line_view.xml",
+        "wizards/download_files_wizard_view.xml",
+        "wizards/l10n_ar_tax_settlement_wizard_view.xml",  # Keep for backward compatibility, but not in menu
     ],
     "demo": [],
     "installable": True,
     "auto_install": False,
     "application": False,
+    "post_init_hook": "l10n_ar_account_tax_settlement_post_init_hook",
 }

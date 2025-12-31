@@ -88,22 +88,16 @@ class AccountChartTemplate(models.AbstractModel):
                 )
                 if existing_journal:
                     continue
+                account_ref = self.env.ref(account_id, raise_if_not_found=False)
                 res[code] = {
                     "type": "general",
                     "name": name,
                     "code": code,
-                    "tax_settlement": type,        # Replaced from Enterprise to Community field
-                    "settlement_tax": tax,
+                    "tax_settlement": type,
+                    "settlement_tax": tax or False,
                     "settlement_partner_id": partner and partner.id or False,
-                    "settlement_account_id": account if self.env.ref(account_id, raise_if_not_found=False) else None,
+                    "settlement_account_id": account_ref.id if account_ref else None,
                     "company_id": company.id,
                     "show_on_dashboard": False,
-                    # "settlement_account_tag_ids": tag and [(4, tag.id, False)], # This looks like Enterprise field, verifying? No, it's just tags on journal maybe? Let's check model.
-                    # settlement_account_tag_ids doesn't exist in standard journal, likely Enterprise or related module.
-                    # We will comment it out if it causes issues, but for now assuming it might be from account_tax_settlement which we removed.
-                    # Wait, if we removed account_tax_settlement, we can't use its fields!
-                    # "settlement_account_tag_ids" was likely Enterprise. I should remove it or check where it came from.
-                    # Checking account_journal.py port, I did not see it added there.
-                    # So I should comment it out to be safe.
                 }
             return res
