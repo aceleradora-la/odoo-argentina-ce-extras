@@ -33,13 +33,13 @@
         # Removed Enterprise deps: account_tax_settlement, l10n_ar_account_reports
     ],
     "data": [
-        "security/ir.model.access.csv",
         "data/inflation_adjustment_index.xml",
         "views/inflation_adjustmen_index_view.xml",
         "views/account_journal_view.xml",
         "views/account_move_line_view.xml",
         "wizards/download_files_wizard_view.xml",
         "wizards/l10n_ar_tax_settlement_wizard_view.xml",  # Keep for backward compatibility, but not in menu
+        "security/ir.model.access.csv",  # Load after wizards so models are registered
     ],
     "demo": [],
     "installable": True,
