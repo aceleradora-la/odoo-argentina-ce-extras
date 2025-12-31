@@ -35,10 +35,11 @@
         <field name="target">new</field>
     </record>
 
-    <menuitem id="menu_l10n_ar_tax_settlement_wizard"
+    <!-- Menú removido: ahora se genera el archivo desde las líneas de impuestos seleccionadas -->
+    <!-- <menuitem id="menu_l10n_ar_tax_settlement_wizard"
               name="Generar Liquidación TXT"
               parent="account.menu_finance_reports"
               action="action_l10n_ar_tax_settlement_wizard"
-              sequence="20"/>
+              sequence="20"/> -->
 
 </odoo>
