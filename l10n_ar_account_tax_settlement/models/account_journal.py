@@ -97,12 +97,20 @@ class AccountJournal(models.Model):
         "res.partner",
         string="Contacto de liquidación",
         help="Partner para liquidación de impuestos",
+<<<<<<< HEAD
+=======
+        check_company=True,
+>>>>>>> f7b3a38 (Agregar check_company a campos settlement_partner_id y settlement_account_id)
     )
     
     settlement_account_id = fields.Many2one(
         "account.account",
         string="Cuenta de contrapartida",
         help="Cuenta de contrapartida para liquidación de impuestos",
+<<<<<<< HEAD
+=======
+        check_company=True,
+>>>>>>> f7b3a38 (Agregar check_company a campos settlement_partner_id y settlement_account_id)
     )
 
     def iibb_aplicado_dgr_mendoza_files_values(self, move_lines):
