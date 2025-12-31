@@ -91,6 +91,21 @@ class AccountJournal(models.Model):
         string="Tax Settlement Type",
         help="Field used to classify journals for tax settlement purposes (formerly in Enterprise)",
     )
+    
+    # Campos adicionales para liquidación
+    settlement_partner_id = fields.Many2one(
+        "res.partner",
+        string="Contacto de liquidación",
+        help="Partner para liquidación de impuestos",
+        check_company=True,
+    )
+    
+    settlement_account_id = fields.Many2one(
+        "account.account",
+        string="Cuenta de contrapartida",
+        help="Cuenta de contrapartida para liquidación de impuestos",
+        check_company=True,
+    )
 
     def iibb_aplicado_dgr_mendoza_files_values(self, move_lines):
         self.ensure_one()
