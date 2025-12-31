@@ -15,8 +15,6 @@ class AccountMoveLine(models.Model):
         self.ensure_one()
         return self.tax_line_id
 
-<<<<<<< HEAD
-=======
     def get_tax_settlement_journal(self):
         """
         Metodo para obtener el diario de liquidacion arrojando mensajes
@@ -69,4 +67,3 @@ class AccountMoveLine(models.Model):
             journal.get_tax_settlement_files_values(self), journal.settlement_tax
         )
         return res
->>>>>>> 6ad1169 (Implementar tablero de liquidaciÃ³n de impuestos similar a Enterprise)
