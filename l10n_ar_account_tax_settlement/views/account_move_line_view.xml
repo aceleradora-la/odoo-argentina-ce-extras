@@ -14,6 +14,10 @@
             <field name="credit" position="attributes">
                 <attribute name="invisible">1</attribute>
             </field>
+            <!-- Asegurar que balance esté visible -->
+            <field name="balance" position="attributes">
+                <attribute name="invisible">0</attribute>
+            </field>
             <field name="journal_id" position="attributes">
                 <attribute name="invisible">1</attribute>
             </field>
@@ -23,6 +27,15 @@
             <field name="account_id" position="after">
                 <field name="tax_line_id"/>
             </field>
+            <!-- Agregar botón de liquidación dentro del tree -->
+            <xpath expr="//tree" position="inside">
+                <button name="button_create_tax_settlement_entry" 
+                        icon="fa-arrow-right" 
+                        help="Liquidar esta línea de impuesto" 
+                        type="object" 
+                        string="Liquidar"
+                        class="btn-primary"/>
+            </xpath>
         </field>
     </record>
 

@@ -78,3 +78,26 @@ class AccountMoveLine(models.Model):
             journal.get_tax_settlement_files_values(self), journal.settlement_tax
         )
         return res
+
+    def button_create_tax_settlement_entry(self):
+        """
+        Botón para liquidar una línea de impuesto individual
+        Crea y publica el asiento de liquidación
+        """
+        self.ensure_one()
+        journal = self.get_tax_settlement_journal()
+        if not journal:
+            raise ValidationError(_("No se encontró un diario de liquidación para esta línea."))
+        
+        # Crear el asiento de liquidación
+        move = journal.create_tax_settlement_entry(self)
+        move.action_post()
+        
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Asiento de Liquidación'),
+            'res_model': 'account.move',
+            'res_id': move.id,
+            'view_mode': 'form',
+            'target': 'current',
+        }
