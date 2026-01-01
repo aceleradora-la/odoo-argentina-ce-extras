@@ -141,6 +141,25 @@ class AccountJournal(models.Model):
         check_company=True,
     )
 
+    # Campos computados para el tablero
+    tax_settlement_lines_count = fields.Integer(
+        string="Líneas a liquidar",
+        compute="_compute_tax_settlement_lines_info",
+        help="Número de líneas pendientes de liquidar"
+    )
+    tax_settlement_lines_amount = fields.Monetary(
+        string="Monto líneas a liquidar",
+        compute="_compute_tax_settlement_lines_info",
+        currency_field="currency_id",
+        help="Monto total de líneas pendientes de liquidar"
+    )
+    tax_settlement_debt_balance = fields.Monetary(
+        string="Saldo a pagar",
+        compute="_compute_tax_settlement_lines_info",
+        currency_field="currency_id",
+        help="Saldo pendiente de pago de liquidaciones"
+    )
+
     def iibb_aplicado_dgr_mendoza_files_values(self, move_lines):
         self.ensure_one()
         ret = ""
@@ -1191,24 +1210,6 @@ class AccountJournal(models.Model):
                 journal.tax_settlement_debt_balance = abs(sum(payable_lines.mapped("balance")))
             else:
                 journal.tax_settlement_debt_balance = 0.0
-
-    tax_settlement_lines_count = fields.Integer(
-        string="Líneas a liquidar",
-        compute="_compute_tax_settlement_lines_info",
-        help="Número de líneas pendientes de liquidar"
-    )
-    tax_settlement_lines_amount = fields.Monetary(
-        string="Monto líneas a liquidar",
-        compute="_compute_tax_settlement_lines_info",
-        currency_field="currency_id",
-        help="Monto total de líneas pendientes de liquidar"
-    )
-    tax_settlement_debt_balance = fields.Monetary(
-        string="Saldo a pagar",
-        compute="_compute_tax_settlement_lines_info",
-        currency_field="currency_id",
-        help="Saldo pendiente de pago de liquidaciones"
-    )
 
     def action_create_payment(self):
         """Abre el wizard de pago para el partner de liquidación"""
