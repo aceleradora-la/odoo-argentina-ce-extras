@@ -60,14 +60,15 @@ class AccountPayment(models.Model):
     def _compute_to_pay_move_line_ids(self):
         """Compute field para mostrar las líneas a pagar"""
         for payment in self:
-            if payment._context.get("default_to_pay_move_line_ids"):
-                payment.to_pay_move_line_ids = payment._context["default_to_pay_move_line_ids"]
-            elif payment.settlement_move_id:
+            if payment.settlement_move_id:
                 # Si hay un asiento de liquidación, obtener sus líneas por pagar
                 payment.to_pay_move_line_ids = payment.settlement_move_id.line_ids.filtered(
                     lambda l: not l.reconciled 
                     and l.account_id.account_type in ("asset_receivable", "liability_payable")
                 )
+            elif self._context.get("default_to_pay_move_line_ids"):
+                # Si viene del contexto, usarlo temporalmente
+                payment.to_pay_move_line_ids = self._context["default_to_pay_move_line_ids"]
             else:
                 payment.to_pay_move_line_ids = False
 
@@ -75,17 +76,24 @@ class AccountPayment(models.Model):
         """Después de publicar el pago, reconciliar con las líneas del asiento de liquidación"""
         res = super().action_post()
         
-        # Si hay líneas a pagar, reconciliarlas con el pago
-        if self.to_pay_move_line_ids:
+        # Si hay un asiento de liquidación, reconciliar con sus líneas
+        if self.settlement_move_id:
+            # Obtener las líneas del asiento de liquidación que no están reconciliadas
+            settlement_lines = self.settlement_move_id.line_ids.filtered(
+                lambda l: not l.reconciled 
+                and l.account_id.account_type in ("asset_receivable", "liability_payable")
+                and l.partner_id == self.partner_id
+            )
+            
             # Obtener las líneas del pago que corresponden a cuentas por pagar
             payment_lines = self.move_id.line_ids.filtered(
                 lambda l: l.account_id.account_type in ("asset_receivable", "liability_payable")
                 and l.partner_id == self.partner_id
             )
             
-            if payment_lines and self.to_pay_move_line_ids:
+            if payment_lines and settlement_lines:
                 # Reconciliar las líneas
-                (payment_lines + self.to_pay_move_line_ids).reconcile()
+                (payment_lines + settlement_lines).reconcile()
         
         return res
 
