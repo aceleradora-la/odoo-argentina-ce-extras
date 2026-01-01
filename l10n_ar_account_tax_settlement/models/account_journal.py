@@ -1321,7 +1321,10 @@ class AccountJournal(models.Model):
                 continue
             balance += group_balance
             
-            # Si el balance es positivo, va a crédito; si es negativo, va a débito
+            # Las líneas de impuestos: si el balance es negativo (crédito en la línea original),
+            # va a débito en el asiento de liquidación; si es positivo (débito en la línea original),
+            # va a crédito en el asiento de liquidación
+            # Esto invierte el signo para "liquidar" el impuesto
             new_vals_line = {
                 "name": self.name,
                 "debit": group_balance < 0.0 and -group_balance or 0.0,
@@ -1352,10 +1355,12 @@ class AccountJournal(models.Model):
         """
         self.ensure_one()
         
-        # Calcular el balance total
+        # Calcular el balance total de las líneas de impuestos
         total_balance = sum(line["debit"] - line["credit"] for line in lines_vals)
         
         # Si hay desbalance, crear línea de contrapartida
+        # La contrapartida debe equilibrar: si las líneas de impuestos suman positivo (más débito),
+        # la contrapartida va a crédito; si suman negativo (más crédito), va a débito
         if not self.company_id.currency_id.is_zero(total_balance):
             if not self.settlement_account_id:
                 raise ValidationError(
@@ -1363,36 +1368,22 @@ class AccountJournal(models.Model):
                       "para crear asientos con desbalance.")
                 )
             
-            # Agregar línea de contrapartida
-            lines_vals.append({
+            # Agregar línea de contrapartida con el partner si está configurado
+            contrapartida_line = {
                 "name": self.name,
                 "debit": total_balance < 0.0 and -total_balance or 0.0,
                 "credit": total_balance >= 0.0 and total_balance or 0.0,
                 "account_id": self.settlement_account_id.id,
-            })
-        
-        # Agregar línea del partner si está configurado
-        if self.settlement_partner_id:
-            # Buscar si ya hay una línea con este partner
-            partner_line = None
-            for line in lines_vals:
-                if line.get("partner_id") == self.settlement_partner_id.id:
-                    partner_line = line
-                    break
+            }
             
-            # Si no hay línea del partner, agregar una línea de contrapartida con el partner
-            if not partner_line:
-                # Calcular el balance total nuevamente (incluyendo la línea de contrapartida si se agregó)
-                total_balance = sum(line["debit"] - line["credit"] for line in lines_vals)
-                if not self.company_id.currency_id.is_zero(total_balance):
-                    # Agregar línea con el partner
-                    lines_vals.append({
-                        "name": self.name,
-                        "debit": total_balance < 0.0 and -total_balance or 0.0,
-                        "credit": total_balance >= 0.0 and total_balance or 0.0,
-                        "account_id": self.settlement_account_id.id if self.settlement_account_id else False,
-                        "partner_id": self.settlement_partner_id.id,
-                    })
+            # Si hay partner configurado, agregarlo a la línea de contrapartida
+            if self.settlement_partner_id:
+                contrapartida_line["partner_id"] = self.settlement_partner_id.id
+            
+            lines_vals.append(contrapartida_line)
+        
+        # El partner ya se agregó en la línea de contrapartida si estaba configurado
+        # No necesitamos agregar una línea adicional
 
         move_vals = {
             "ref": self._context.get("entry_ref", self.name),
