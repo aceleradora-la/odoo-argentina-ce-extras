@@ -1131,11 +1131,11 @@ class AccountJournal(models.Model):
         """
         Función que devuelve apuntes contables que se liquidan con este diario
         (liquidados o no)
+        Cada diario solo muestra líneas de su propia empresa, no de empresas relacionadas
         """
         self.ensure_one()
+        # Usar exactamente la empresa del diario, no empresas relacionadas
         company_id = self.company_id.id
-        if self.company_id.child_ids:
-            company_id = self.env.companies.ids
         
         # Para SICORE, buscar por tag en lugar de por settlement_account_tag_ids
         if self.settlement_tax == 'sicore_aplicado':
@@ -1144,8 +1144,9 @@ class AccountJournal(models.Model):
                 return [('id', '=', False)]  # No hay tag, no hay líneas
             
             domain = [
-                ("company_id", "in", [company_id] if isinstance(company_id, int) else company_id),
+                ("company_id", "=", company_id),  # Solo líneas de esta empresa exacta
                 ("tax_repartition_line_id.tag_ids", "in", [tag_sicore.id]),
+                ("parent_state", "=", "posted"),  # Solo asientos publicados
             ]
         else:
             # Para otros tipos, necesitaríamos settlement_account_tag_ids que no existe en Community
