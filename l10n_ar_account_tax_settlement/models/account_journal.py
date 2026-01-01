@@ -1185,12 +1185,8 @@ class AccountJournal(models.Model):
                 continue
             
             domain = journal._get_tax_settlement_lines_domain_by_tags()
-            # Filtrar solo líneas sin liquidar
-            # En Community Edition, no tenemos tax_settlement_move_id, así que mostramos todas las líneas
-            # que coinciden con el dominio (líneas pendientes de liquidar)
-            # Si el campo existe, lo usamos; si no, mostramos todas
-            if hasattr(self.env["account.move.line"], 'tax_settlement_move_id'):
-                domain.append(("tax_settlement_move_id", "=", False))
+            # Filtrar solo líneas sin liquidar (tax_settlement_move_id = False o tax_state = 'to_settle')
+            domain.append(("tax_settlement_move_id", "=", False))
             
             lines = self.env["account.move.line"].search(domain)
             journal.tax_settlement_lines_count = len(lines)
@@ -1218,6 +1214,33 @@ class AccountJournal(models.Model):
         partner = self.settlement_partner_id
         if not partner:
             raise ValidationError(_("Solo puede crear pago si el diario tiene un contacto de liquidación configurado!"))
+        
+        # Buscar asientos de liquidación del partner que tienen líneas sin pagar
+        settlement_moves = self.env["account.move"].search([
+            ("journal_id", "=", self.id),
+            ("partner_id", "=", partner.id),
+            ("state", "=", "posted"),
+        ])
+        
+        # Buscar líneas de cuentas por pagar que no están reconciliadas
+        open_move_line_ids = settlement_moves.line_ids.filtered(
+            lambda r: not r.reconciled and r.account_id.account_type in ("asset_receivable", "liability_payable")
+        )
+        
+        context = {
+            "default_partner_id": partner.id,
+            "default_partner_type": "supplier",
+            "default_payment_type": "outbound",
+            "create": True,
+            "default_company_id": self.company_id.id,
+            "pop_up": True,
+            "force_simple": True,
+        }
+        
+        # Si hay líneas pendientes de pago, agregarlas al contexto
+        if open_move_line_ids:
+            context["default_to_pay_move_line_ids"] = open_move_line_ids.ids
+        
         return {
             "name": _("Registrar Pago"),
             "view_mode": "form",
@@ -1225,11 +1248,7 @@ class AccountJournal(models.Model):
             "view_id": False,
             "target": "current",
             "type": "ir.actions.act_window",
-            "context": {
-                "default_partner_id": partner.id,
-                "default_partner_type": "supplier",
-                "default_payment_type": "outbound",
-            },
+            "context": context,
         }
 
     ####################################
@@ -1267,9 +1286,8 @@ class AccountJournal(models.Model):
         vals = self._get_tax_settlement_entry_vals(lines_vals)
         move = self.env["account.move"].create(vals)
         
-        # Si el campo existe, lo actualizamos
-        if hasattr(move_lines, 'tax_settlement_move_id'):
-            move_lines.write({"tax_settlement_move_id": move.id})
+        # Siempre actualizar tax_settlement_move_id (el campo existe en nuestro modelo)
+        move_lines.write({"tax_settlement_move_id": move.id})
         
         return move
 
