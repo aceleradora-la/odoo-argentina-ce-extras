@@ -1065,7 +1065,8 @@ class AccountJournal(models.Model):
             content += "%014.2f" % abs(line.balance)
 
             # Porcentaje de Exclusion        [ 6]
-            content += "%06.2f" % tax.porcentaje_exclusion or "000.00"
+            porcentaje_exclusion = getattr(tax, 'porcentaje_exclusion', 0.0) or 0.0
+            content += "%06.2f" % porcentaje_exclusion
 
             # Fecha Emision Boletin          [10] (dd/mm/yyyy)
             content += fields.Date.from_string(issue_date).strftime("%d/%m/%Y")
@@ -1153,6 +1154,61 @@ class AccountJournal(models.Model):
             domain.append(("date", "<=", to_date))
 
         return domain
+
+    def _compute_tax_settlement_lines_info(self):
+        """Calcula información de líneas a liquidar para el tablero"""
+        for journal in self:
+            if not journal.tax_settlement:
+                journal.tax_settlement_lines_count = 0
+                journal.tax_settlement_lines_amount = 0.0
+                journal.tax_settlement_debt_balance = 0.0
+                continue
+            
+            domain = journal._get_tax_settlement_lines_domain_by_tags()
+            # Filtrar solo líneas sin liquidar
+            # En Community Edition, no tenemos tax_settlement_move_id, así que mostramos todas las líneas
+            # que coinciden con el dominio (líneas pendientes de liquidar)
+            # Si el campo existe, lo usamos; si no, mostramos todas
+            if hasattr(self.env["account.move.line"], 'tax_settlement_move_id'):
+                domain.append(("tax_settlement_move_id", "=", False))
+            
+            lines = self.env["account.move.line"].search(domain)
+            journal.tax_settlement_lines_count = len(lines)
+            journal.tax_settlement_lines_amount = abs(sum(lines.mapped("balance")))
+            
+            # Calcular saldo a pagar (líneas liquidadas pero no pagadas)
+            if journal.settlement_partner_id:
+                # Buscar movimientos de liquidación del partner
+                settlement_moves = self.env["account.move"].search([
+                    ("journal_id", "=", journal.id),
+                    ("partner_id", "=", journal.settlement_partner_id.id),
+                    ("state", "=", "posted"),
+                ])
+                # Sumar saldos de cuentas por pagar de estos movimientos
+                payable_lines = settlement_moves.line_ids.filtered(
+                    lambda l: l.account_id.account_type == "liability_payable" and not l.reconciled
+                )
+                journal.tax_settlement_debt_balance = abs(sum(payable_lines.mapped("balance")))
+            else:
+                journal.tax_settlement_debt_balance = 0.0
+
+    tax_settlement_lines_count = fields.Integer(
+        string="Líneas a liquidar",
+        compute="_compute_tax_settlement_lines_info",
+        help="Número de líneas pendientes de liquidar"
+    )
+    tax_settlement_lines_amount = fields.Monetary(
+        string="Monto líneas a liquidar",
+        compute="_compute_tax_settlement_lines_info",
+        currency_field="currency_id",
+        help="Monto total de líneas pendientes de liquidar"
+    )
+    tax_settlement_debt_balance = fields.Monetary(
+        string="Saldo a pagar",
+        compute="_compute_tax_settlement_lines_info",
+        currency_field="currency_id",
+        help="Saldo pendiente de pago de liquidaciones"
+    )
 
     def action_create_payment(self):
         """Abre el wizard de pago para el partner de liquidación"""
