@@ -57,6 +57,40 @@ def remove_accents_and_dieresis(input_str):
 class AccountJournal(models.Model):
     _inherit = "account.journal"
 
+    def _get_tax_code(self, tax, line=None):
+        """
+        Obtiene el código del impuesto de forma compatible con Community Edition.
+        Intenta obtener el código desde diferentes fuentes:
+        1. tax.l10n_ar_code (si existe en Enterprise)
+        2. line.withholding_id.tax_id.l10n_ar_code (si hay withholding)
+        3. line.payment_id.tax_withholding_id.codigo_regimen (si hay payment con withholding)
+        """
+        # Intentar obtener desde el campo directo (Enterprise)
+        if hasattr(tax, 'l10n_ar_code') and tax.l10n_ar_code:
+            return tax.l10n_ar_code
+        
+        # Si hay una línea, intentar obtener desde withholding
+        if line:
+            # Desde withholding_id (l10n_ar.payment.withholding)
+            if hasattr(line, 'withholding_id') and line.withholding_id:
+                withholding_tax = line.withholding_id.tax_id
+                if withholding_tax and hasattr(withholding_tax, 'l10n_ar_code') and withholding_tax.l10n_ar_code:
+                    return withholding_tax.l10n_ar_code
+            
+            # Desde payment_id.tax_withholding_id (account.tax con codigo_regimen)
+            if hasattr(line, 'payment_id') and line.payment_id:
+                payment = line.payment_id
+                if hasattr(payment, 'tax_withholding_id') and payment.tax_withholding_id:
+                    withholding_tax = payment.tax_withholding_id
+                    # Intentar codigo_regimen (Community)
+                    if hasattr(withholding_tax, 'codigo_regimen') and withholding_tax.codigo_regimen:
+                        return withholding_tax.codigo_regimen
+                    # Intentar l10n_ar_code si existe
+                    if hasattr(withholding_tax, 'l10n_ar_code') and withholding_tax.l10n_ar_code:
+                        return withholding_tax.l10n_ar_code
+        
+        return False
+
     settlement_tax = fields.Selection(
         [
             ("vat", "VAT"),
@@ -985,7 +1019,7 @@ class AccountJournal(models.Model):
                 
                 if is_earnings_tax:
                     content += "0217"
-                    regimen = tax.l10n_ar_code
+                    regimen = self._get_tax_code(tax, line)
                     # necesitamos lo de filter porque hay dos regimenes que le
                     # agregamos caracteres
                     content += regimen and "%03d" % int("".join(filter(str.isdigit, str(regimen)))) or "000"
@@ -993,24 +1027,29 @@ class AccountJournal(models.Model):
                 else:
                     content += "0767"
                     # por ahora el unico implementado es para factura M
-                    content += "%03d" % int(tax.l10n_ar_code) if tax.l10n_ar_code else "499"
-                    if tax.l10n_ar_code == "602":
+                    tax_code = self._get_tax_code(tax, line)
+                    content += "%03d" % int(tax_code) if tax_code else "499"
+                    if tax_code == "602":
                         codcond = "13" if tax.amount == 3 else "14"
                     # Si el código de régimen es 214 entonces el código de condición debe ser '00'.
                     # Más información en archivo l10n_ar_account_tax_settlement/data/relaciones-codigos-sicore.csv
-                    if tax.l10n_ar_code == "214":
+                    if tax_code == "214":
                         codcond = "00"
             else:
                 # Percepción de IVA
                 content += "0767"
-                content += "%03d" % int(
-                    tax.l10n_ar_code
-                )  # (ver account tax) DUDA cómo le aplico el código de régimen a las facturas viejas
-                if tax.l10n_ar_code == "602":
+                tax_code = self._get_tax_code(tax, line)
+                if not tax_code:
+                    raise ValidationError(
+                        _("No se encontró código de régimen para el impuesto '%s'. "
+                          "Configure el código en la tabla de impuestos del impuesto.") % tax.name
+                    )
+                content += "%03d" % int(tax_code)
+                if tax_code == "602":
                     codcond = "13" if tax.amount == 3 else "14"
                 # Si el código de régimen es 493 entonces el código de condición debe ser '00'.
                 # Más información en archivo l10n_ar_account_tax_settlement/data/relaciones-codigos-sicore.xlsx
-                elif tax.l10n_ar_code == "493":
+                elif tax_code == "493":
                     codcond = "00"
 
             # Codigo de Operacion            [ 1]
