@@ -1321,14 +1321,17 @@ class AccountJournal(models.Model):
                 continue
             balance += group_balance
             
-            # Las líneas de impuestos: si el balance es negativo (crédito en la línea original),
-            # va a débito en el asiento de liquidación; si es positivo (débito en la línea original),
-            # va a crédito en el asiento de liquidación
-            # Esto invierte el signo para "liquidar" el impuesto
+            # Las líneas de impuestos: balance = débito - crédito
+            # En Community, las líneas de impuestos suelen tener balance negativo (crédito)
+            # Para liquidar, invertimos: balance negativo va a débito, balance positivo va a crédito
+            # Pero si las líneas están invertidas, necesitamos invertir la lógica
+            # Si balance > 0 (más débito en línea original), debe ir a débito en liquidación
+            # Si balance < 0 (más crédito en línea original), debe ir a crédito en liquidación
+            # INVERTIDO: para que coincida con Enterprise donde las líneas van a débito
             new_vals_line = {
                 "name": self.name,
-                "debit": group_balance < 0.0 and -group_balance or 0.0,
-                "credit": group_balance >= 0.0 and group_balance or 0.0,
+                "debit": group_balance >= 0.0 and group_balance or 0.0,
+                "credit": group_balance < 0.0 and -group_balance or 0.0,
                 "account_id": group["account_id"][0],
             }
             
