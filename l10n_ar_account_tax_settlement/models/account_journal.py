@@ -1237,6 +1237,159 @@ class AccountJournal(models.Model):
             },
         }
 
+    ####################################
+    # Métodos compartidos de liquidación
+    ####################################
+
+    def create_tax_settlement_entry(self, move_lines):
+        """
+        Función que recibe move lines y crea una liquidación en este diario
+        agrupando por cuenta contable. (se usa desde apuntes contables)
+        Devuelve un browse del move creado
+        """
+        self.ensure_one()
+        if draft_lines := move_lines.filtered(lambda x: x.move_id.state == "draft"):
+            raise ValidationError(
+                _(
+                    "Ha seleccionado apuntes contables de asientos en borrador. "
+                    "Solo puede liquidar apuntes de asientos publicados. Apuntes: %s"
+                )
+                % draft_lines.ids
+            )
+        if not self.tax_settlement:
+            raise ValidationError(_("Settlement only allowed on journals with Tax Settlement enable"))
+
+        # En Community Edition, no tenemos tax_settlement_move_id, así que no validamos si ya está liquidado
+        # Si el campo existe, validamos
+        if hasattr(move_lines, 'tax_settlement_move_id'):
+            if move_lines.filtered("tax_settlement_move_id"):
+                raise ValidationError(
+                    _("You can not settle lines that has already been settled!\n" "* Lines ids: %s")
+                    % (move_lines.filtered("tax_settlement_move_id").ids)
+                )
+
+        lines_vals = self._get_tax_settlement_entry_lines_vals([("id", "in", move_lines.ids)])
+        vals = self._get_tax_settlement_entry_vals(lines_vals)
+        move = self.env["account.move"].create(vals)
+        
+        # Si el campo existe, lo actualizamos
+        if hasattr(move_lines, 'tax_settlement_move_id'):
+            move_lines.write({"tax_settlement_move_id": move.id})
+        
+        return move
+
+    def _get_tax_settlement_entry_lines_vals(self, domain=None):
+        """
+        Obtiene los valores de las líneas del asiento de liquidación
+        agrupando por cuenta contable
+        """
+        self.ensure_one()
+        if not domain:
+            domain = []
+        
+        # Agrupar líneas por cuenta contable
+        grouped_move_lines = self.env["account.move.line"].read_group(
+            domain, ["account_id", "balance", "amount_currency:sum"], ["account_id"]
+        )
+
+        new_move_lines = []
+        balance = 0.0
+        company_currency = self.company_id.currency_id
+        is_zero = company_currency.is_zero
+        
+        for group in grouped_move_lines:
+            group_balance = company_currency.round(group["balance"])
+            if is_zero(group_balance):
+                continue
+            balance += group_balance
+            
+            # Si el balance es positivo, va a crédito; si es negativo, va a débito
+            new_vals_line = {
+                "name": self.name,
+                "debit": group_balance < 0.0 and -group_balance or 0.0,
+                "credit": group_balance >= 0.0 and group_balance or 0.0,
+                "account_id": group["account_id"][0],
+            }
+            
+            # Si la cuenta tiene moneda secundaria, agregar currency_id y amount_currency
+            account = self.env["account.account"].browse(group["account_id"][0])
+            if account.currency_id:
+                if new_vals_line["debit"] > 0.0:
+                    amount_currency = (
+                        group["amount_currency"] < 0.0 and -group["amount_currency"] or group["amount_currency"]
+                    )
+                else:
+                    amount_currency = (
+                        group["amount_currency"] > 0.0 and -group["amount_currency"] or group["amount_currency"]
+                    )
+                new_vals_line.update({"currency_id": account.currency_id.id, "amount_currency": amount_currency})
+            
+            new_move_lines.append(new_vals_line)
+
+        return new_move_lines
+
+    def _get_tax_settlement_entry_vals(self, lines_vals):
+        """
+        Obtiene los valores para crear el asiento de liquidación
+        """
+        self.ensure_one()
+        
+        # Calcular el balance total
+        total_balance = sum(line["debit"] - line["credit"] for line in lines_vals)
+        
+        # Si hay desbalance, crear línea de contrapartida
+        if not self.company_id.currency_id.is_zero(total_balance):
+            if not self.settlement_account_id:
+                raise ValidationError(
+                    _("El diario de liquidación debe tener una cuenta de contrapartida configurada "
+                      "para crear asientos con desbalance.")
+                )
+            
+            # Agregar línea de contrapartida
+            lines_vals.append({
+                "name": self.name,
+                "debit": total_balance < 0.0 and -total_balance or 0.0,
+                "credit": total_balance >= 0.0 and total_balance or 0.0,
+                "account_id": self.settlement_account_id.id,
+            })
+        
+        # Agregar línea del partner si está configurado
+        if self.settlement_partner_id:
+            # Buscar si ya hay una línea con este partner
+            partner_line = None
+            for line in lines_vals:
+                if line.get("partner_id") == self.settlement_partner_id.id:
+                    partner_line = line
+                    break
+            
+            # Si no hay línea del partner, agregar una línea de contrapartida con el partner
+            if not partner_line:
+                # Calcular el balance total nuevamente (incluyendo la línea de contrapartida si se agregó)
+                total_balance = sum(line["debit"] - line["credit"] for line in lines_vals)
+                if not self.company_id.currency_id.is_zero(total_balance):
+                    # Agregar línea con el partner
+                    lines_vals.append({
+                        "name": self.name,
+                        "debit": total_balance < 0.0 and -total_balance or 0.0,
+                        "credit": total_balance >= 0.0 and total_balance or 0.0,
+                        "account_id": self.settlement_account_id.id if self.settlement_account_id else False,
+                        "partner_id": self.settlement_partner_id.id,
+                    })
+
+        move_vals = {
+            "ref": self._context.get("entry_ref", self.name),
+            "date": self._context.get("entry_date", fields.Date.today()),
+            "journal_id": self.id,
+            "company_id": self.company_id.id,
+            "line_ids": [(0, 0, line_vals) for line_vals in lines_vals],
+        }
+        
+        # Agregar partner al move si está configurado
+        if self.settlement_partner_id:
+            move_vals["partner_id"] = self.settlement_partner_id.id
+        
+        return move_vals
+
     def open_action(self):
         """
         Modificamos funcion para que si es liquidacion de impuestos devuelva accion correspondiente
