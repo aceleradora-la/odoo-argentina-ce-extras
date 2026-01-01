@@ -1081,26 +1081,6 @@ class AccountJournal(models.Model):
     # account.journal.dashboard methods
     ###################################
 
-    def action_create_payment(self):
-        """Crear un pago para el partner de liquidación"""
-        self.ensure_one()
-        partner = self.settlement_partner_id
-        if not partner:
-            raise ValidationError(_("Solo puede crear un pago si el diario tiene un contacto de liquidación configurado"))
-        return {
-            "name": _("Registrar Pago"),
-            "view_mode": "form",
-            "res_model": "account.payment",
-            "view_id": False,
-            "target": "current",
-            "type": "ir.actions.act_window",
-            "context": {
-                "default_partner_id": partner.id,
-                "default_partner_type": "supplier",
-                "default_payment_type": "outbound",
-            },
-        }
-
     def _get_tax_settlement_lines_domain_by_tags(self):
         """
         Función que devuelve apuntes contables que se liquidan con este diario
