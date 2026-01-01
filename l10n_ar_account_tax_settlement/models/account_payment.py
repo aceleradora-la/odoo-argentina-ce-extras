@@ -48,8 +48,11 @@ class AccountPayment(models.Model):
                         res["partner_id"] = partners.id
                 
                 # Calcular el monto total si no está establecido
+                # Para cuentas por pagar, el balance puede ser negativo (crédito) o positivo (débito)
+                # Necesitamos el valor absoluto de cada línea y sumarlos
                 if not res.get("amount"):
-                    total = abs(sum(valid_lines.mapped("balance")))
+                    # Sumar los valores absolutos de cada línea
+                    total = sum(abs(line.balance) for line in valid_lines)
                     res["amount"] = total
                 
                 # Guardar las líneas para uso posterior
