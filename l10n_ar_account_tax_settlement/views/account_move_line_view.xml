@@ -27,14 +27,28 @@
             <field name="account_id" position="after">
                 <field name="tax_line_id"/>
             </field>
-            <!-- Agregar botón de liquidación dentro del tree -->
+            <!-- Agregar botones de liquidación dentro del tree -->
             <xpath expr="//tree" position="inside">
+                <field name="tax_state" invisible="1"/>
                 <button name="button_create_tax_settlement_entry" 
                         icon="fa-arrow-right" 
                         help="Liquidar esta línea de impuesto" 
                         type="object" 
                         string="Liquidar"
-                        class="btn-primary"/>
+                        class="btn-primary"
+                        invisible="tax_state != 'to_settle'"/>
+                <button name="action_open_tax_settlement_entry" 
+                        icon="fa-external-link" 
+                        help="Abrir asiento de liquidación" 
+                        type="object" 
+                        string="Abrir"
+                        invisible="tax_state not in ['to_pay', 'paid']"/>
+                <button name="action_pay_tax_settlement" 
+                        icon="fa-dollar" 
+                        help="Pagar liquidación" 
+                        type="object" 
+                        string="Pagar"
+                        invisible="tax_state != 'to_pay'"/>
             </xpath>
         </field>
     </record>

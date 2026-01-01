@@ -1,9 +1,53 @@
-from odoo import _, models
+from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
 
 
 class AccountMoveLine(models.Model):
     _inherit = "account.move.line"
+
+    # Campos para tracking de liquidación
+    tax_settlement_move_id = fields.Many2one(
+        "account.move",
+        "Asiento de Liquidación",
+        help="Asiento donde se liquidó este impuesto",
+        copy=False,
+        index=True,
+    )
+    tax_state = fields.Selection(
+        [
+            ("to_settle", "A Liquidar"),
+            ("to_pay", "A Pagar"),
+            ("paid", "Pagado"),
+        ],
+        string="Estado de Liquidación",
+        compute="_compute_tax_state",
+        store=True,
+        help="Estado de la liquidación del impuesto",
+    )
+
+    @api.depends(
+        "tax_repartition_line_id",
+        "tax_settlement_move_id",
+        "tax_settlement_move_id.line_ids.reconciled",
+    )
+    def _compute_tax_state(self):
+        """Calcula el estado de liquidación basándose en si tiene asiento y si está reconciliado"""
+        for rec in self:
+            if not rec.tax_repartition_line_id:
+                rec.tax_state = False
+            elif not rec.tax_settlement_move_id:
+                rec.tax_state = "to_settle"
+            elif rec.tax_settlement_move_id:
+                # Verificar si las líneas de cuentas por pagar del asiento están reconciliadas
+                payable_lines = rec.tax_settlement_move_id.line_ids.filtered(
+                    lambda x: x.account_id.account_type in ("asset_receivable", "liability_payable")
+                )
+                if payable_lines and all(x.reconciled for x in payable_lines):
+                    rec.tax_state = "paid"
+                else:
+                    rec.tax_state = "to_pay"
+            else:
+                rec.tax_state = False
 
     def _get_settlement_tax(self, date=None):
         """Método puente para poder usar l10n_ar_tax_settlement_backward_comp
@@ -78,6 +122,56 @@ class AccountMoveLine(models.Model):
             journal.get_tax_settlement_files_values(self), journal.settlement_tax
         )
         return res
+
+    def action_open_tax_settlement_entry(self):
+        """Abre el asiento de liquidación"""
+        self.ensure_one()
+        if not self.tax_settlement_move_id:
+            raise ValidationError(_("Esta línea no tiene un asiento de liquidación asociado."))
+        return {
+            "name": _("Asiento de Liquidación"),
+            "view_mode": "form",
+            "res_model": "account.move",
+            "res_id": self.tax_settlement_move_id.id,
+            "type": "ir.actions.act_window",
+            "target": "current",
+        }
+
+    def action_pay_tax_settlement(self):
+        """Abre el wizard de pago para el asiento de liquidación"""
+        self.ensure_one()
+        if not self.tax_settlement_move_id:
+            raise ValidationError(_("Esta línea no tiene un asiento de liquidación asociado."))
+        
+        # Buscar líneas del asiento de liquidación que no están reconciliadas
+        open_move_line_ids = self.tax_settlement_move_id.line_ids.filtered(
+            lambda r: not r.reconciled and r.account_id.account_type in ("asset_receivable", "liability_payable")
+        )
+        
+        if not open_move_line_ids:
+            raise ValidationError(_("No hay líneas pendientes de pago en el asiento de liquidación."))
+        
+        partner = open_move_line_ids.mapped("partner_id")
+        if len(partner) != 1:
+            raise ValidationError(_("El asiento de liquidación debe tener un único partner."))
+        
+        return {
+            "name": _("Registrar Pago"),
+            "view_mode": "form",
+            "res_model": "account.payment",
+            "target": "current",
+            "type": "ir.actions.act_window",
+            "context": {
+                "default_partner_type": "supplier",
+                "default_to_pay_move_line_ids": open_move_line_ids.ids,
+                "default_payment_type": "outbound",
+                "create": True,
+                "default_company_id": self.company_id.id,
+                "pop_up": True,
+                "force_simple": True,
+                "default_partner_id": partner.id,
+            },
+        }
 
     def button_create_tax_settlement_entry(self):
         """
