@@ -38,7 +38,7 @@
         "views/account_journal_view.xml",
         "views/account_move_line_view.xml",
         "wizards/download_files_wizard_view.xml",
-        "wizards/l10n_ar_tax_settlement_wizard_view.xml",  # Keep for backward compatibility, but not in menu
+        "views/l10n_ar_tax_settlement_wizard_view.xml",  # Keep for backward compatibility, but not in menu
         "security/ir.model.access.csv",  # Load after wizards so models are registered
     ],
     "demo": [],
