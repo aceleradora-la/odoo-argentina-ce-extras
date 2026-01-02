@@ -51,5 +51,5 @@ class DownloadFileWizardLine(models.TransientModel):
         "res.download_files_wizard",
     )
     txt_filename = fields.Char(string="Nombre de Archivo")
-    txt_binary = fields.Binary(string="Archivo", filename="txt_filename")
+    txt_binary = fields.Binary(string="Archivo")
 
