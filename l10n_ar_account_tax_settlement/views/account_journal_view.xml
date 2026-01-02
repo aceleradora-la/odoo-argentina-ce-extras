@@ -65,11 +65,14 @@
     </record>
 
     <!-- Menú padre para agrupar funcionalidades de impuestos argentinos -->
+    <!-- Se crea aquí también para que funcione si este módulo se instala primero -->
+    <!-- noupdate="1" evita que se sobrescriba si ya existe (creado por otro módulo) -->
     <menuitem id="menu_impuestos_argentina" 
               name="Impuestos Argentina" 
               parent="account.menu_finance_entries" 
               sequence="15" 
-              groups="account.group_account_user"/>
+              groups="account.group_account_user"
+              noupdate="1"/>
 
     <!-- Menú para el tablero de liquidación -->
     <menuitem id="menu_board_journal_10" 
