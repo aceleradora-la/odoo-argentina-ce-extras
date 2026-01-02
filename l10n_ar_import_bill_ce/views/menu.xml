@@ -1,6 +1,6 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <!-- AcciÃ³n para importar facturas desde Excel -->
+    <!-- Acción para importar facturas desde Excel -->
     <record id="action_import_bills_from_excel" model="ir.actions.act_window">
         <field name="name">Importar Facturas desde Excel</field>
         <field name="type">ir.actions.act_window</field>
@@ -10,11 +10,21 @@
         <field name="context">{}</field>
     </record>
 
+    <!-- Menú padre para agrupar funcionalidades de impuestos argentinos -->
+    <!-- Se crea aquí también para que funcione si este módulo se instala primero -->
+    <!-- noupdate="1" evita que se sobrescriba si ya existe (creado por otro módulo) -->
+    <menuitem id="menu_impuestos_argentina" 
+              name="Impuestos Argentina" 
+              parent="account.menu_finance_entries" 
+              sequence="15" 
+              groups="account.group_account_user"
+              noupdate="1"/>
+
     <!-- Menú en Impuestos Argentina -->
     <menuitem
         id="menu_import_bills_from_excel"
         name="Importar Facturas desde Excel"
-        parent="l10n_ar_account_tax_settlement.menu_impuestos_argentina"
+        parent="menu_impuestos_argentina"
         action="action_import_bills_from_excel"
         sequence="20"
         groups="account.group_account_user"/>
