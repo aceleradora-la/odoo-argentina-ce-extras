@@ -64,12 +64,19 @@
         <field name="domain">[('tax_settlement', '!=', False)]</field>
     </record>
 
+    <!-- Menú padre para agrupar funcionalidades de impuestos argentinos -->
+    <menuitem id="menu_impuestos_argentina" 
+              name="Impuestos Argentina" 
+              parent="account.menu_finance_entries" 
+              sequence="15" 
+              groups="account.group_account_user"/>
+
     <!-- Menú para el tablero de liquidación -->
     <menuitem id="menu_board_journal_10" 
               name="Liq. de Impuestos" 
               action="open_account_tax_settlement_kanban" 
-              parent="account.menu_finance_entries" 
-              sequence="20" 
+              parent="menu_impuestos_argentina" 
+              sequence="10" 
               groups="account.group_account_user"/>
 
 </odoo>

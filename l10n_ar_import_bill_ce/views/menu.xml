@@ -10,13 +10,13 @@
         <field name="context">{}</field>
     </record>
 
-    <!-- MenÃº en Contabilidad -->
+    <!-- Menú en Impuestos Argentina -->
     <menuitem
         id="menu_import_bills_from_excel"
         name="Importar Facturas desde Excel"
-        parent="account.menu_finance_entries"
+        parent="l10n_ar_account_tax_settlement.menu_impuestos_argentina"
         action="action_import_bills_from_excel"
-        sequence="50"
+        sequence="20"
         groups="account.group_account_user"/>
 </odoo>
 
