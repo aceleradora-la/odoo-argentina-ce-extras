@@ -21,23 +21,27 @@ class AccountMoveLine(models.Model):
         ],
         string="Estado de Liquidación",
         compute="_compute_tax_state",
-        store=True,
+        store=False,  # Cambiado a False para evitar cálculo masivo durante instalación
         help="Estado de la liquidación del impuesto",
     )
 
     @api.depends(
         "tax_repartition_line_id",
         "tax_settlement_move_id",
-        "tax_settlement_move_id.line_ids.reconciled",
+        # Removida dependencia indirecta que causa recálculos masivos
+        # "tax_settlement_move_id.line_ids.reconciled",
     )
     def _compute_tax_state(self):
         """Calcula el estado de liquidación basándose en si tiene asiento y si está reconciliado"""
-        for rec in self:
-            if not rec.tax_repartition_line_id:
-                rec.tax_state = False
-            elif not rec.tax_settlement_move_id:
+        # Filtrar solo líneas que tienen tax_repartition_line_id para evitar cálculos innecesarios
+        lines_without_tax = self.filtered(lambda r: not r.tax_repartition_line_id)
+        lines_without_tax.tax_state = False
+        
+        lines_with_tax = self - lines_without_tax
+        for rec in lines_with_tax:
+            if not rec.tax_settlement_move_id:
                 rec.tax_state = "to_settle"
-            elif rec.tax_settlement_move_id:
+            else:
                 # Verificar si las líneas de cuentas por pagar del asiento están reconciliadas
                 payable_lines = rec.tax_settlement_move_id.line_ids.filtered(
                     lambda x: x.account_id.account_type in ("asset_receivable", "liability_payable")
@@ -46,8 +50,6 @@ class AccountMoveLine(models.Model):
                     rec.tax_state = "paid"
                 else:
                     rec.tax_state = "to_pay"
-            else:
-                rec.tax_state = False
 
     def _get_settlement_tax(self, date=None):
         """Método puente para poder usar l10n_ar_tax_settlement_backward_comp
