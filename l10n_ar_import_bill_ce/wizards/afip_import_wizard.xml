@@ -44,7 +44,7 @@
                 </group>
 
                 <field name="line_ids" nolabel="1" readonly="1" context="{'default_wizard_id': id}">
-                    <tree decoration-warning="exists == True" editable="false">
+                    <list decoration-warning="exists == True" editable="false">
                         <field name="exists" optional="hide"/>
                         <field name="document_type"/>
                         <field name="invoice_number"/>
@@ -53,7 +53,7 @@
                         <field name="date_invoice"/>
                         <field name="currency"/>
                         <field name="amount_total"/>
-                    </tree>
+                    </list>
                 </field>
 
                 <footer>
