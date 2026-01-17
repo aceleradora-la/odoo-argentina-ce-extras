@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_account_journal_form" model="ir.ui.view">
+        <field name="name">account.journal.form.inherit.l10n_ar_account_tax_settlement</field>
+        <field name="model">account.journal</field>
+        <field name="inherit_id" ref="account.view_account_journal_form"/>
+        <field name="arch" type="xml">
+            <field name="type" position="after">
+                <field name="tax_settlement" invisible="type != 'general'"/>
+                <field name="settlement_tax" invisible="not tax_settlement"/>
+                <field name="settlement_partner_id" invisible="not tax_settlement"/>
+                <field name="settlement_account_id" invisible="type != 'general' or not tax_settlement" groups="account.group_account_readonly"/>
+            </field>
+        </field>
+    </record>
+
+    <!-- Tablero Kanban para diarios de liquidación -->
+    <record id="account_journal_dashboard_kanban_view_inherited" model="ir.ui.view">
+        <field name="name">account.journal.dashboard.kanban.inherited</field>
+        <field name="model">account.journal</field>
+        <field name="inherit_id" ref="account.account_journal_dashboard_kanban_view" />
+        <field name="arch" type="xml">
+            <field name="kanban_dashboard" position="after">
+                <field name="tax_settlement"/>
+            </field>
+            <field name="json_activity_data" position="before">
+                <t t-if="record.tax_settlement.raw_value" t-call="JournalBodyTaxSettlement"/>
+            </field>
+            <!-- add new payment after existing journal entries button -->
+            <xpath expr="//button[@name='action_create_new']" position="after">
+                <button type="object" name="action_create_payment" class="btn btn-primary" t-if="record.tax_settlement.raw_value">
+                    <span>Nuevo Pago</span>
+                </button>
+            </xpath>
+            <templates>
+                <t t-name="JournalBodyTaxSettlement" class="flex-row">
+                    <div class="row">
+                        <div class="col-12">
+                            <a role="menuitem" type="object" name="open_action" context="{'tax_settlement': True, 'search_default_posted': 1}">
+                                <span><field name="tax_settlement_lines_count"/> Líneas a liquidar</span>
+                                <span class="float-end"><field name="tax_settlement_lines_amount" widget="monetary" options="{'currency_field': 'currency_id'}"/></span>
+                            </a>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-12">
+                            <a role="menuitem" type="object" name="open_action" context="{'debt_balance': True}">
+                                <span>Saldo a pagar</span>
+                                <span class="float-end"><field name="tax_settlement_debt_balance" widget="monetary" options="{'currency_field': 'currency_id'}"/></span>
+                            </a>
+                        </div>
+                    </div>
+                </t>
+            </templates>
+        </field>
+    </record>
+
+    <!-- Acción para abrir el tablero de liquidación de impuestos -->
+    <record id="open_account_tax_settlement_kanban" model="ir.actions.act_window">
+        <field name="name">Liq. de Impuestos</field>
+        <field name="res_model">account.journal</field>
+        <field name="view_mode">kanban,form</field>
+        <field name="view_id" ref="account.account_journal_dashboard_kanban_view"/>
+        <field name="domain">[('tax_settlement', '!=', False)]</field>
+    </record>
+
+    <!-- Menú padre para agrupar funcionalidades de impuestos argentinos -->
+    <!-- Se crea aquí también para que funcione si este módulo se instala primero -->
+    <!-- noupdate evita que se sobrescriba si ya existe (creado por otro módulo) -->
+    <data noupdate="1">
+        <record id="menu_impuestos_argentina" model="ir.ui.menu">
+            <field name="name">Impuestos Argentina</field>
+            <field name="parent_id" ref="account.menu_finance_entries"/>
+            <field name="sequence">15</field>
+            <field name="groups_id" eval="[(4, ref('account.group_account_user'))]"/>
+        </record>
+    </data>
+
+    <!-- Menú para el tablero de liquidación -->
+    <menuitem id="menu_board_journal_10" 
+              name="Liq. de Impuestos" 
+              action="open_account_tax_settlement_kanban" 
+              parent="menu_impuestos_argentina" 
+              sequence="10" 
+              groups="account.group_account_user"/>
+
+</odoo>
