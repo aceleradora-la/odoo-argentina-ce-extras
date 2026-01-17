@@ -9,11 +9,7 @@
             <!-- Buscamos el campo afip_fce_es_anulacion en la pestaña "Otra información" -->
             <xpath expr="//field[@name='afip_fce_es_anulacion']" position="after">
                 <field name="l10n_ar_afip_fce_transmission"
-                       attrs="{'invisible': [
-                           '|',
-                           ('l10n_latam_document_type_id.code', 'not in', ['111', '112', '113', '114']),
-                           ('move_type', '!=', 'out_invoice')
-                       ]}"
+                       invisible="not l10n_latam_document_type_id or l10n_latam_document_type_id.code not in ['111', '112', '113', '114'] or move_type != 'out_invoice'"
                        options="{'no_create': True}"/>
             </xpath>
         </field>
