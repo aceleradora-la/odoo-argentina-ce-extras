@@ -12,8 +12,8 @@
                        invisible="not l10n_latam_document_type_id or l10n_latam_document_type_id.code not in ['111', '112', '113', '114'] or move_type != 'out_invoice'"
                        options="{'no_create': True}"/>
             </xpath>
-            <!-- Si no existe afip_fce_es_anulacion, buscar en la pestaña "Otra información" y agregar al final del primer grupo -->
-            <xpath expr="//page[contains(@string, 'Otra información') or @name='other_info']//group[1]//field[last()]" position="after">
+            <!-- Si no existe afip_fce_es_anulacion, buscar en la pestaña "Otra información" por name -->
+            <xpath expr="//page[@name='other_info']//group[1]//field[last()]" position="after">
                 <field name="l10n_ar_afip_fce_transmission"
                        invisible="not l10n_latam_document_type_id or l10n_latam_document_type_id.code not in ['111', '112', '113', '114'] or move_type != 'out_invoice'"
                        options="{'no_create': True}"/>
