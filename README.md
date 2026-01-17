@@ -21,6 +21,18 @@ Módulo para importar facturas desde archivos Excel exportados desde ARCA/AFIP, 
 
 Ver la documentación en [l10n_ar_import_bill_ce/README.rst](l10n_ar_import_bill_ce/README.rst)
 
+### l10n_ar_afipws_fe_fce_transmission
+
+Módulo de extensión para `l10n_ar_afipws_fe` que permite elegir el modo de transmisión (SCA/ADC) para Facturas de Crédito Electrónica (FCE) de forma individual por factura, en lugar de usar solo la configuración general.
+
+**Versiones disponibles:**
+- Odoo 18.0 Community: rama `18.0`
+
+**Características:**
+- Campo en la factura para seleccionar SCA o ADC
+- Prioriza el valor de la factura sobre la configuración general
+- Visible solo para facturas de crédito electrónica (FCE)
+
 ## Instalación
 
 1. Clonar este repositorio y cambiar a la rama correspondiente:
