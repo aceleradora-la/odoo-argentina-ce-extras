@@ -5,9 +5,15 @@
         <field name="model">account.move</field>
         <field name="inherit_id" ref="account.view_move_form"/>
         <field name="arch" type="xml">
-            <!-- Agregar el campo después de "FCE: Es anulacion?" -->
-            <!-- Buscamos el campo afip_fce_es_anulacion en la pestaña "Otra información" -->
+            <!-- Agregar el campo después de l10n_latam_document_type_id que siempre existe en facturas argentinas -->
+            <!-- Si existe afip_fce_es_anulacion, lo agregamos después de ese -->
             <xpath expr="//field[@name='afip_fce_es_anulacion']" position="after">
+                <field name="l10n_ar_afip_fce_transmission"
+                       invisible="not l10n_latam_document_type_id or l10n_latam_document_type_id.code not in ['111', '112', '113', '114'] or move_type != 'out_invoice'"
+                       options="{'no_create': True}"/>
+            </xpath>
+            <!-- Fallback: si no existe afip_fce_es_anulacion, agregarlo después de l10n_latam_document_type_id -->
+            <xpath expr="//field[@name='l10n_latam_document_type_id']" position="after">
                 <field name="l10n_ar_afip_fce_transmission"
                        invisible="not l10n_latam_document_type_id or l10n_latam_document_type_id.code not in ['111', '112', '113', '114'] or move_type != 'out_invoice'"
                        options="{'no_create': True}"/>
