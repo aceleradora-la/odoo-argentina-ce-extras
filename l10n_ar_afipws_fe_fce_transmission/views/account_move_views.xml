@@ -5,15 +5,15 @@
         <field name="model">account.move</field>
         <field name="inherit_id" ref="account.view_move_form"/>
         <field name="arch" type="xml">
-            <!-- Estrategia: buscar primero afip_fce_es_anulacion, si no existe, buscar en la pestaña "Otra información" -->
-            <!-- Intentar agregar después de afip_fce_es_anulacion si existe -->
+            <!-- Estrategia múltiple: intentar varios lugares donde puede estar el campo -->
+            <!-- 1. Después de afip_fce_es_anulacion si existe -->
             <xpath expr="//field[@name='afip_fce_es_anulacion']" position="after">
                 <field name="l10n_ar_afip_fce_transmission"
                        invisible="not l10n_latam_document_type_id or l10n_latam_document_type_id.code not in ['111', '112', '113', '114', '201', '202', '203', '206', '207', '208'] or move_type != 'out_invoice'"
                        options="{'no_create': True}"/>
             </xpath>
-            <!-- Si no existe afip_fce_es_anulacion, buscar en la pestaña "Otra información" por name -->
-            <xpath expr="//page[@name='other_info']//group[1]//field[last()]" position="after">
+            <!-- 2. Después de l10n_latam_document_type_id (campo que siempre existe en facturas argentinas) -->
+            <xpath expr="//field[@name='l10n_latam_document_type_id']" position="after">
                 <field name="l10n_ar_afip_fce_transmission"
                        invisible="not l10n_latam_document_type_id or l10n_latam_document_type_id.code not in ['111', '112', '113', '114', '201', '202', '203', '206', '207', '208'] or move_type != 'out_invoice'"
                        options="{'no_create': True}"/>
