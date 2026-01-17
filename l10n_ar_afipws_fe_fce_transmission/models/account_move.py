@@ -52,7 +52,8 @@ class AccountMove(models.Model):
             doc_code = self.l10n_latam_document_type_id.code
             # FCE puede ser código 111, pero también verificar otros códigos relacionados
             # Códigos comunes de FCE: 111 (FCE), 112 (FCE débito), 113 (FCE crédito), 114 (FCE anulación)
-            if doc_code in ['111', '112', '113', '114']:
+            # También incluye variantes: 201, 202, 203, 206, 207, 208
+            if doc_code in ['111', '112', '113', '114', '201', '202', '203', '206', '207', '208']:
                 is_fce = True
         
         # Si es FCE y tiene un valor definido en la factura, usar ese valor
