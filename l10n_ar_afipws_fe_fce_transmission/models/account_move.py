@@ -39,10 +39,11 @@ class AccountMove(models.Model):
         Sobrescribe el método para priorizar el campo de la factura sobre la configuración general.
         Si la factura tiene un valor definido, lo usa. Si no, deja que el método original use la configuración general.
         """
-        # SIEMPRE llamar al método original primero para mantener toda su lógica (IVA, etc.)
-        res = super(AccountMove, self).wsfe_invoice_add_info(ws, invoice_info)
+        # Si la factura tiene un valor definido, agregarlo ANTES del super()
+        # y temporalmente quitar el parámetro de configuración para evitar duplicados
+        config_param_name = "l10n_ar_afipws_fe.fce_transmission"
+        original_config_value = None
         
-        # Si la factura tiene un valor definido, agregarlo DESPUÉS para que prevalezca sobre la configuración general
         if self.l10n_ar_afip_fce_transmission:
             # Mapear el valor del campo al texto completo que espera AFIP
             transmission_mapping = {
@@ -53,8 +54,22 @@ class AccountMove(models.Model):
                 self.l10n_ar_afip_fce_transmission,
                 self.l10n_ar_afip_fce_transmission  # Fallback al valor original si no está en el mapeo
             )
-            # Agregar el opcional 27 DESPUÉS del método original para que prevalezca
-            # Si el método original ya agregó el 27 desde la configuración, este lo reemplazará
+            
+            # Guardar el valor original del parámetro de configuración
+            config_param = self.env['ir.config_parameter'].sudo()
+            original_config_value = config_param.get_param(config_param_name, "")
+            
+            # Temporalmente quitar el parámetro para que el método original no agregue el opcional 27
+            config_param.set_param(config_param_name, "")
+            
+            # Agregar el opcional 27 con el valor de la factura
             ws.AgregarOpcional(opcional_id=27, valor=transmission_value)
+        
+        # SIEMPRE llamar al método original para mantener toda su lógica (IVA, etc.)
+        res = super(AccountMove, self).wsfe_invoice_add_info(ws, invoice_info)
+        
+        # Restaurar el parámetro de configuración si lo modificamos
+        if self.l10n_ar_afip_fce_transmission and original_config_value:
+            self.env['ir.config_parameter'].sudo().set_param(config_param_name, original_config_value)
         
         return res
