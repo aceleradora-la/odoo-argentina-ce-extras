@@ -39,7 +39,10 @@ class AccountMove(models.Model):
         Sobrescribe el método para priorizar el campo de la factura sobre la configuración general.
         Si la factura tiene un valor definido, lo usa. Si no, deja que el método original use la configuración general.
         """
-        # Si la factura tiene un valor definido, usarlo en lugar del parámetro general
+        # SIEMPRE llamar al método original primero para mantener toda su lógica (IVA, etc.)
+        res = super(AccountMove, self).wsfe_invoice_add_info(ws, invoice_info)
+        
+        # Si la factura tiene un valor definido, agregarlo DESPUÉS para que prevalezca sobre la configuración general
         if self.l10n_ar_afip_fce_transmission:
             # Mapear el valor del campo al texto completo que espera AFIP
             transmission_mapping = {
@@ -50,10 +53,8 @@ class AccountMove(models.Model):
                 self.l10n_ar_afip_fce_transmission,
                 self.l10n_ar_afip_fce_transmission  # Fallback al valor original si no está en el mapeo
             )
-            # Agregar el opcional 27 con el valor de la factura
+            # Agregar el opcional 27 DESPUÉS del método original para que prevalezca
+            # Si el método original ya agregó el 27 desde la configuración, este lo reemplazará
             ws.AgregarOpcional(opcional_id=27, valor=transmission_value)
-            # No llamar al super() en este caso para evitar que el método original agregue el opcional desde la configuración
-            return
         
-        # Si no hay valor en la factura, llamar al método original que usa la configuración general
-        return super(AccountMove, self).wsfe_invoice_add_info(ws, invoice_info)
+        return res
