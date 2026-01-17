@@ -50,6 +50,16 @@ class AccountMove(models.Model):
         # Si es FCE y tiene un valor definido en la factura, agregarlo ANTES del método original
         # para que tenga prioridad
         if is_fce and self.l10n_ar_afip_fce_transmission:
+            # Mapear el valor del campo al texto completo que espera AFIP
+            transmission_mapping = {
+                'SCA': 'TRANSFERENCIA AL SISTEMA DE CIRCULACION ABIERTA',
+                'ADC': 'AGENTE DE DEPOSITO COLECTIVO',
+            }
+            transmission_value = transmission_mapping.get(
+                self.l10n_ar_afip_fce_transmission,
+                self.l10n_ar_afip_fce_transmission  # Fallback al valor original si no está en el mapeo
+            )
+            
             # Asegurar que existe la lista de Opcionales
             if 'Opcionales' not in invoice_info:
                 invoice_info['Opcionales'] = []
@@ -60,10 +70,10 @@ class AccountMove(models.Model):
                 if opt.get('Id') != 27
             ]
             
-            # Agregar el opcional 27 con el valor de la factura
+            # Agregar el opcional 27 con el valor completo que espera AFIP
             invoice_info['Opcionales'].append({
                 'Id': 27,
-                'Valor': self.l10n_ar_afip_fce_transmission,
+                'Valor': transmission_value,
             })
         
         # Llamar al método original (puede agregar otros opcionales o el 27 si no está definido en la factura)

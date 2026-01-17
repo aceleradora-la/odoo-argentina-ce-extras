@@ -8,14 +8,14 @@
             <!-- Estrategia 1: Si existe afip_fce_es_anulacion, agregar antes de ese campo -->
             <xpath expr="//field[@name='afip_fce_es_anulacion']" position="before">
                 <field name="l10n_ar_afip_fce_transmission"
-                       invisible="not l10n_latam_document_type_id or l10n_latam_document_type_id.code not in ['111', '112', '113', '114', '201', '202', '203', '206', '207', '208'] or move_type != 'out_invoice'"
+                       invisible="move_type != 'out_invoice'"
                        options="{'no_create': True}"/>
             </xpath>
             <!-- Estrategia 2: Si no existe afip_fce_es_anulacion, agregar en la pestaña "Otra información" -->
             <!-- Buscar la pestaña other_info y agregar al inicio del primer grupo -->
             <xpath expr="//page[@name='other_info']//group[1]" position="inside">
                 <field name="l10n_ar_afip_fce_transmission"
-                       invisible="not l10n_latam_document_type_id or l10n_latam_document_type_id.code not in ['111', '112', '113', '114', '201', '202', '203', '206', '207', '208'] or move_type != 'out_invoice'"
+                       invisible="move_type != 'out_invoice'"
                        options="{'no_create': True}"/>
             </xpath>
         </field>
