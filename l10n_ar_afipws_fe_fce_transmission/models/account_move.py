@@ -39,17 +39,8 @@ class AccountMove(models.Model):
         Sobrescribe el método para priorizar el campo de la factura sobre la configuración general.
         Si la factura tiene un valor definido, lo usa. Si no, deja que el método original use la configuración general.
         """
-        # Verificar si es una factura FCE ANTES de llamar al método original
-        is_fce = False
-        if self.l10n_latam_document_type_id:
-            doc_code = self.l10n_latam_document_type_id.code
-            # Códigos FCE: 111, 112, 113, 114, 201, 202, 203, 206, 207, 208
-            if doc_code in ['111', '112', '113', '114', '201', '202', '203', '206', '207', '208']:
-                is_fce = True
-        
-        # Si es FCE y tiene un valor definido en la factura, agregarlo ANTES del método original
-        # para que tenga prioridad
-        if is_fce and self.l10n_ar_afip_fce_transmission:
+        # Verificar si la factura tiene un valor definido para FCE transmission
+        if self.l10n_ar_afip_fce_transmission:
             # Mapear el valor del campo al texto completo que espera AFIP
             transmission_mapping = {
                 'SCA': 'TRANSFERENCIA AL SISTEMA DE CIRCULACION ABIERTA',
@@ -59,42 +50,13 @@ class AccountMove(models.Model):
                 self.l10n_ar_afip_fce_transmission,
                 self.l10n_ar_afip_fce_transmission  # Fallback al valor original si no está en el mapeo
             )
-            
-            # Asegurar que existe la lista de Opcionales
-            if 'Opcionales' not in invoice_info:
-                invoice_info['Opcionales'] = []
-            
-            # Remover el opcional 27 si ya existe (puede haber sido agregado previamente)
-            invoice_info['Opcionales'] = [
-                opt for opt in invoice_info['Opcionales']
-                if opt.get('Id') != 27
-            ]
-            
-            # Agregar el opcional 27 con el valor completo que espera AFIP
-            invoice_info['Opcionales'].append({
-                'Id': 27,
-                'Valor': transmission_value,
-            })
+            # Si la factura tiene valor, usar ese valor en lugar del parámetro general
+            # El método original busca en ir.config_parameter, pero nosotros lo sobrescribimos
+            ws.AgregarOpcional(opcional_id=27, valor=transmission_value)
+        else:
+            # Si no hay valor en la factura, dejar que el método original use la configuración general
+            pass
         
         # Llamar al método original (puede agregar otros opcionales o el 27 si no está definido en la factura)
-        res = super(AccountMove, self).wsfe_invoice_add_info(ws, invoice_info)
-        
-        # Si es FCE y ya agregamos el opcional 27 desde la factura, asegurarnos de que no se duplique
-        # (el método original puede agregarlo desde la configuración general)
-        if is_fce and self.l10n_ar_afip_fce_transmission:
-            # Remover duplicados del opcional 27, manteniendo solo el primero (el de la factura)
-            if 'Opcionales' in invoice_info:
-                opcionales = invoice_info['Opcionales']
-                seen_27 = False
-                filtered_opcionales = []
-                for opt in opcionales:
-                    if opt.get('Id') == 27:
-                        if not seen_27:
-                            filtered_opcionales.append(opt)
-                            seen_27 = True
-                        # Ignorar duplicados
-                    else:
-                        filtered_opcionales.append(opt)
-                invoice_info['Opcionales'] = filtered_opcionales
-        
-        return res
+        # Pero si ya agregamos el 27 arriba, el método original debería no agregarlo de nuevo o nuestro valor prevalece
+        return super(AccountMove, self).wsfe_invoice_add_info(ws, invoice_info)
