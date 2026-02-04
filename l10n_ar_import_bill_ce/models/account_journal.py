@@ -22,7 +22,41 @@ class AccountJournal(models.Model):
         Intercepta la importación desde el dashboard para archivos Excel de ARCA/AFIP.
         Si el archivo es un Excel y el diario es válido, redirige al proceso de importación del módulo.
         """
-        self.ensure_one()
+        # Si el recordset está vacío, intentar obtener el journal del contexto
+        journal = self
+        if not journal:
+            # Intentar obtener el journal del contexto
+            journal_id = self._context.get('default_journal_id') or self._context.get('journal_id')
+            if journal_id:
+                journal = self.env['account.journal'].browse(journal_id)
+            else:
+                # Si no hay journal en el contexto y no hay attachments, dejar que el método original lo maneje
+                if not attachment_ids:
+                    return super().create_document_from_attachment(attachment_ids=attachment_ids)
+                # Si hay attachments pero no journal, intentar obtener el journal por defecto de la compañía
+                # o buscar un journal válido para importación
+                company = self.env.company
+                if company.country_code == "AR" and company.l10n_ar_afip_responsibility_type_id.code == "1":
+                    # Buscar un journal de compras válido
+                    journal = self.env['account.journal'].search([
+                        ('type', '=', 'purchase'),
+                        ('company_id', '=', company.id)
+                    ], limit=1)
+                    if not journal:
+                        # Si no hay journal de compras, buscar uno de ventas (no POS)
+                        journal = self.env['account.journal'].search([
+                            ('type', '=', 'sale'),
+                            ('company_id', '=', company.id)
+                        ], limit=1)
+                if not journal:
+                    # Si aún no hay journal, dejar que el método original lo maneje
+                    return super().create_document_from_attachment(attachment_ids=attachment_ids)
+        
+        # Si hay múltiples journals, usar el primero
+        if len(journal) > 1:
+            journal = journal[0]
+        elif not journal:
+            return super().create_document_from_attachment(attachment_ids=attachment_ids)
         
         # Si no hay attachments, usar el método original
         if not attachment_ids:
@@ -41,12 +75,12 @@ class AccountJournal(models.Model):
         # Si hay un archivo Excel, verificar si el diario es válido para importación
         if has_excel:
             # Validar que el diario sea válido para importación
-            is_pos = getattr(self, 'l10n_ar_is_pos', False) if hasattr(self, 'l10n_ar_is_pos') else False
+            is_pos = getattr(journal, 'l10n_ar_is_pos', False) if hasattr(journal, 'l10n_ar_is_pos') else False
             
             is_valid_journal = (
-                (self.type == "purchase" or (self.type == "sale" and not is_pos))
-                and self.company_id.country_code == "AR"
-                and self.company_id.l10n_ar_afip_responsibility_type_id.code == "1"
+                (journal.type == "purchase" or (journal.type == "sale" and not is_pos))
+                and journal.company_id.country_code == "AR"
+                and journal.company_id.l10n_ar_afip_responsibility_type_id.code == "1"
             )
             
             # Si el diario es válido, interceptar y usar nuestro proceso de importación
@@ -76,7 +110,7 @@ class AccountJournal(models.Model):
                             
                             if has_arca_format:
                                 # Es un archivo de ARCA/AFIP, usar nuestro proceso de importación
-                                return self.import_bills_from_xls(attachments)
+                                return journal.import_bills_from_xls(attachments)
                 except Exception:
                     # Si hay error al leer el archivo, dejar que el método original lo maneje
                     pass
