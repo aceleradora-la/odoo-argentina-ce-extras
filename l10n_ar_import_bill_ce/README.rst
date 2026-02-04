@@ -36,6 +36,7 @@ Requisitos
 - Odoo 17.0 o 18.0 Community Edition
 - Módulos base de localización argentina: `l10n_ar`, `l10n_latam_base`, `l10n_latam_invoice_document`
 - Empresa argentina con responsabilidad AFIP tipo 1
+- Python: `pandas>=1.3.0` y `openpyxl>=3.1.5` (ver requirements.txt)
 
 Autor
 =====
