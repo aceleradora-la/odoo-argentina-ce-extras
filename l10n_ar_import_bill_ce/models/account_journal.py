@@ -17,6 +17,73 @@ from odoo.exceptions import UserError
 class AccountJournal(models.Model):
     _inherit = "account.journal"
 
+    def create_document_from_attachment(self, attachment_ids=None):
+        """
+        Intercepta la importación desde el dashboard para archivos Excel de ARCA/AFIP.
+        Si el archivo es un Excel y el diario es válido, redirige al proceso de importación del módulo.
+        """
+        self.ensure_one()
+        
+        # Si no hay attachments, usar el método original
+        if not attachment_ids:
+            return super().create_document_from_attachment(attachment_ids=attachment_ids)
+        
+        # Obtener los attachments
+        attachments = self.env["ir.attachment"].browse(attachment_ids)
+        
+        # Verificar si alguno de los archivos es un Excel
+        excel_extensions = ['.xlsx', '.xls']
+        has_excel = any(
+            attachment.name and any(attachment.name.lower().endswith(ext) for ext in excel_extensions)
+            for attachment in attachments
+        )
+        
+        # Si hay un archivo Excel, verificar si el diario es válido para importación
+        if has_excel:
+            # Validar que el diario sea válido para importación
+            is_pos = getattr(self, 'l10n_ar_is_pos', False) if hasattr(self, 'l10n_ar_is_pos') else False
+            
+            is_valid_journal = (
+                (self.type == "purchase" or (self.type == "sale" and not is_pos))
+                and self.company_id.country_code == "AR"
+                and self.company_id.l10n_ar_afip_responsibility_type_id.code == "1"
+            )
+            
+            # Si el diario es válido, interceptar y usar nuestro proceso de importación
+            if is_valid_journal:
+                # Verificar que el archivo tenga las columnas esperadas de ARCA/AFIP
+                # Intentar leer el primer archivo Excel para verificar el formato
+                try:
+                    if PANDAS_AVAILABLE:
+                        excel_attachments = [
+                            att for att in attachments 
+                            if att.name and any(att.name.lower().endswith(ext) for ext in excel_extensions)
+                        ]
+                        if excel_attachments:
+                            # Leer el primer archivo para verificar si tiene el formato de ARCA/AFIP
+                            first_attachment = excel_attachments[0]
+                            file_content = base64.b64decode(first_attachment.datas)
+                            # Leer las primeras 3 filas para detectar el formato
+                            df = pd.read_excel(BytesIO(file_content), engine="openpyxl", nrows=3, header=None)
+                            
+                            # Verificar si tiene columnas típicas de ARCA/AFIP
+                            # El formato ARCA/AFIP tiene los headers en la primera fila
+                            expected_columns = ["Fecha", "Punto de Venta", "Número Desde", "Tipo"]
+                            
+                            # Verificar en la primera fila (headers) y también en los valores
+                            first_row_str = " ".join([str(val) for val in df.iloc[0].values if pd.notna(val)])
+                            has_arca_format = any(col in first_row_str for col in expected_columns)
+                            
+                            if has_arca_format:
+                                # Es un archivo de ARCA/AFIP, usar nuestro proceso de importación
+                                return self.import_bills_from_xls(attachments)
+                except Exception:
+                    # Si hay error al leer el archivo, dejar que el método original lo maneje
+                    pass
+        
+        # Si no es un archivo Excel válido o no es de ARCA/AFIP, usar el método original
+        return super().create_document_from_attachment(attachment_ids=attachment_ids)
+
     def action_import_bills_from_xls(self):
         """Action to open file upload dialog for importing bills from Excel"""
         self.ensure_one()
@@ -58,6 +125,16 @@ class AccountJournal(models.Model):
         # Asegurarse de que attachments sea un recordset
         if not isinstance(attachments, models.Model):
             attachments = self.env["ir.attachment"].browse(attachments if isinstance(attachments, (list, tuple)) else [attachments])
+        
+        # Crear el wizard una sola vez para todos los archivos
+        wizard = self.env["afip.import.wizard"].create(
+            {
+                "journal_id": self.id,
+                "company_id": self.company_id.id,
+            }
+        )
+        
+        all_line_vals = []
         
         for attachment in attachments:
             file_content = base64.b64decode(attachment.datas)
@@ -174,14 +251,11 @@ class AccountJournal(models.Model):
             # Filtrar solo las columnas que existen en el modelo
             filtered_df = df[valid_fields]
             line_vals = [(0, 0, row) for row in filtered_df.to_dict(orient="records")]
-
-            wizard = self.env["afip.import.wizard"].create(
-                {
-                    "journal_id": self.id,
-                    "company_id": self.company_id.id,
-                }
-            )
-            wizard.write({"line_ids": line_vals})
+            all_line_vals.extend(line_vals)
+        
+        # Escribir todas las líneas en el wizard una sola vez
+        if all_line_vals:
+            wizard.write({"line_ids": all_line_vals})
 
             # Determine wizard name based on journal type
             wizard_name = (
