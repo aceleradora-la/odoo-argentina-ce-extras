@@ -1305,7 +1305,6 @@ class AccountJournal(models.Model):
         )
 
         new_move_lines = []
-        balance = 0.0
         company_currency = self.company_id.currency_id
         is_zero = company_currency.is_zero
         
@@ -1313,33 +1312,22 @@ class AccountJournal(models.Model):
             group_balance = company_currency.round(group["balance"])
             if is_zero(group_balance):
                 continue
-            balance += group_balance
-            
-            # Las líneas de impuestos: balance = débito - crédito
-            # En Community, las líneas de impuestos suelen tener balance negativo (crédito)
-            # Para liquidar, invertimos: balance negativo va a débito, balance positivo va a crédito
-            # Pero si las líneas están invertidas, necesitamos invertir la lógica
-            # Si balance > 0 (más débito en línea original), debe ir a débito en liquidación
-            # Si balance < 0 (más crédito en línea original), debe ir a crédito en liquidación
-            # INVERTIDO: para que coincida con Enterprise donde las líneas van a débito
+            # La liquidación debe ser el signo contrario de las líneas originales
+            # (equivalente a una reversión por cuenta agrupada).
+            # Ejemplo: si en origen la cuenta quedó en crédito (balance < 0),
+            # en liquidación debe ir a débito por el mismo importe.
             new_vals_line = {
                 "name": self.name,
-                "debit": group_balance >= 0.0 and group_balance or 0.0,
-                "credit": group_balance < 0.0 and -group_balance or 0.0,
+                "debit": group_balance < 0.0 and -group_balance or 0.0,
+                "credit": group_balance > 0.0 and group_balance or 0.0,
                 "account_id": group["account_id"][0],
             }
             
             # Si la cuenta tiene moneda secundaria, agregar currency_id y amount_currency
             account = self.env["account.account"].browse(group["account_id"][0])
             if account.currency_id:
-                if new_vals_line["debit"] > 0.0:
-                    amount_currency = (
-                        group["amount_currency"] < 0.0 and -group["amount_currency"] or group["amount_currency"]
-                    )
-                else:
-                    amount_currency = (
-                        group["amount_currency"] > 0.0 and -group["amount_currency"] or group["amount_currency"]
-                    )
+                # Mismo criterio que balance: en liquidación va con signo opuesto.
+                amount_currency = -(group["amount_currency"] or 0.0)
                 new_vals_line.update({"currency_id": account.currency_id.id, "amount_currency": amount_currency})
             
             new_move_lines.append(new_vals_line)
