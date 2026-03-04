@@ -64,5 +64,14 @@
         <field name="context">{'search_default_posted': 1}</field>
     </record>
 
+    <record id="action_account_move_line_mass_settlement" model="ir.actions.server">
+        <field name="name">Liquidar seleccionadas</field>
+        <field name="model_id" ref="account.model_account_move_line"/>
+        <field name="binding_model_id" ref="account.model_account_move_line"/>
+        <field name="binding_view_types">list</field>
+        <field name="state">code</field>
+        <field name="code">action = records.action_create_tax_settlement_entry_multi()</field>
+    </record>
+
 </odoo>
 
