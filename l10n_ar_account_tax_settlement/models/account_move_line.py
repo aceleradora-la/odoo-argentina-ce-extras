@@ -197,3 +197,33 @@ class AccountMoveLine(models.Model):
             'view_mode': 'form',
             'target': 'current',
         }
+
+    def action_create_tax_settlement_entry_multi(self):
+        """
+        Acción masiva para liquidar múltiples líneas seleccionadas desde la vista lista.
+        Crea y publica un único asiento de liquidación agrupado.
+        """
+        lines = self
+        if not lines:
+            active_ids = self.env.context.get("active_ids", [])
+            lines = self.browse(active_ids)
+        if not lines:
+            raise ValidationError(_("No se seleccionaron líneas para liquidar."))
+
+        # Solo procesar líneas pendientes de liquidación.
+        lines_to_settle = lines.filtered(lambda l: l.tax_state == "to_settle")
+        if not lines_to_settle:
+            raise ValidationError(_("Las líneas seleccionadas ya están liquidadas o no son liquidables."))
+
+        journal = lines_to_settle.get_tax_settlement_journal()
+        move = journal.create_tax_settlement_entry(lines_to_settle)
+        move.action_post()
+
+        return {
+            "type": "ir.actions.act_window",
+            "name": _("Asiento de Liquidación"),
+            "res_model": "account.move",
+            "res_id": move.id,
+            "view_mode": "form",
+            "target": "current",
+        }
