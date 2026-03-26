@@ -1,17 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <record id="action_l10n_ar_tax_declaration_wizard" model="ir.actions.act_window">
+    <record id="action_l10n_ar_tax_declaration_dynamic" model="ir.actions.server">
         <field name="name">Declaración Fiscal (AR)</field>
-        <field name="res_model">l10n_ar.tax.declaration.wizard</field>
-        <field name="view_mode">form</field>
-        <field name="target">new</field>
+        <field name="model_id" ref="model_l10n_ar_tax_declaration_wizard"/>
+        <field name="state">code</field>
+        <field name="code">action = env["l10n_ar.tax.declaration.wizard"].action_open_dynamic_tax_report()</field>
     </record>
 
     <menuitem
         id="menu_l10n_ar_tax_declaration"
         name="Declaración Fiscal (AR)"
         parent="account.menu_finance_reports"
-        action="action_l10n_ar_tax_declaration_wizard"
+        action="action_l10n_ar_tax_declaration_dynamic"
         sequence="23"
     />
 </odoo>

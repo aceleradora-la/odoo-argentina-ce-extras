@@ -1,4 +1,5 @@
-from odoo import _, fields, models
+from odoo import _, api, fields, models
+from odoo.exceptions import ValidationError
 
 
 class L10nArTaxDeclarationWizard(models.TransientModel):
@@ -13,6 +14,29 @@ class L10nArTaxDeclarationWizard(models.TransientModel):
     )
     date_from = fields.Date(string="Fecha Desde", required=True)
     date_to = fields.Date(string="Fecha Hasta", required=True)
+
+    @api.model
+    def action_open_dynamic_tax_report(self):
+        """Abre el reporte dinámico de impuestos (UI estilo Enterprise)."""
+        candidate_actions = [
+            # Odoo Enterprise (account_reports)
+            "account_reports.action_account_report_tax",
+            # Fallbacks defensivos por variantes de versiones/custom
+            "account.action_account_report_tax",
+            "account_reports.action_account_report_taxes",
+        ]
+        for xmlid in candidate_actions:
+            action = self.env["ir.actions.actions"]._for_xml_id(xmlid, raise_if_not_found=False)
+            if action:
+                return action
+
+        raise ValidationError(
+            _(
+                "No se encontró la acción del reporte dinámico de impuestos. "
+                "Verifique que esté instalado el módulo de reportes contables correspondiente "
+                "(por ejemplo, l10n_ar_reports/account_reports)."
+            )
+        )
 
     def action_open_tax_report(self):
         self.ensure_one()
