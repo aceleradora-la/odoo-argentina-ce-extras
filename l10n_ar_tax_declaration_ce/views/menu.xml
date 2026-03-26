@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="action_l10n_ar_tax_declaration_wizard" model="ir.actions.act_window">
+        <field name="name">Declaración Fiscal (AR)</field>
+        <field name="res_model">l10n_ar.tax.declaration.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+
+    <menuitem
+        id="menu_l10n_ar_tax_declaration"
+        name="Declaración Fiscal (AR)"
+        parent="account.menu_finance_reports"
+        action="action_l10n_ar_tax_declaration_wizard"
+        sequence="23"
+    />
+</odoo>
+

@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_l10n_ar_tax_declaration_wizard_form" model="ir.ui.view">
+        <field name="name">l10n_ar.tax.declaration.wizard.form</field>
+        <field name="model">l10n_ar.tax.declaration.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Declaración Fiscal (AR)">
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="date_from"/>
+                            <field name="date_to"/>
+                        </group>
+                        <group>
+                            <field name="company_id" groups="base.group_multi_company"/>
+                        </group>
+                    </group>
+
+                    <separator string="Acciones"/>
+                    <group>
+                        <button
+                            name="action_open_tax_report"
+                            type="object"
+                            string="Abrir Tax Report (AR)"
+                            class="btn-primary"
+                        />
+                        <button
+                            name="action_open_vat_book"
+                            type="object"
+                            string="Libro IVA Digital (ZIP) (Portal IVA)"
+                            class="btn-secondary"
+                        />
+                    </group>
+                </sheet>
+                <footer>
+                    <button string="Cerrar" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+</odoo>
+
