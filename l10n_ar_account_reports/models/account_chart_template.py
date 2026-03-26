@@ -240,7 +240,7 @@ class AccountChartTemplate(models.AbstractModel):
 
         for company in ar_companies:
             # En Odoo 18, las cuentas usan company_ids (many2many) en lugar de company_id
-            accounts = self.env["account.account"].search([("company_id", "=", company.id)])
+            accounts = self.env["account.account"].search([("company_ids", "in", company.id)])
 
             # Primero limpiar todas las etiquetas específicas de reportes argentinos
             for account in accounts:
