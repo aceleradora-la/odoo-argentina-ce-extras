@@ -26,7 +26,10 @@ class L10nArTaxDeclarationWizard(models.TransientModel):
             "account_reports.action_account_report_taxes",
         ]
         for xmlid in candidate_actions:
-            action = self.env["ir.actions.actions"]._for_xml_id(xmlid, raise_if_not_found=False)
+            try:
+                action = self.env["ir.actions.actions"]._for_xml_id(xmlid)
+            except ValueError:
+                action = False
             if action:
                 return action
 
