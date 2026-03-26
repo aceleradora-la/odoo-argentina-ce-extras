@@ -36,8 +36,8 @@
         "data/inflation_adjustment_index.xml",
         "views/inflation_adjustmen_index_view.xml",
         "views/account_journal_view.xml",
-        "views/account_move_line_view.xml",
         "wizards/download_files_wizard_view.xml",
+        "views/account_move_line_view.xml",
         "views/l10n_ar_tax_settlement_wizard_view.xml",  # Keep for backward compatibility, but not in menu
         "security/ir.model.access.csv",  # Load after wizards so models are registered
     ],
