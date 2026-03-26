@@ -39,7 +39,9 @@ class AccountPayment(models.Model):
                 # Obtener el asiento de liquidación (debe ser el mismo para todas las líneas)
                 settlement_moves = valid_lines.mapped("move_id")
                 if len(settlement_moves) == 1:
-                    res["settlement_move_id"] = settlement_moves.id
+                    # Solo marcamos settlement_move_id si proviene de un diario de liquidación.
+                    if self._is_tax_settlement_move(settlement_moves):
+                        res["settlement_move_id"] = settlement_moves.id
                 
                 # Si no hay partner_id, obtenerlo de las líneas
                 if not res.get("partner_id") and valid_lines:
@@ -60,6 +62,12 @@ class AccountPayment(models.Model):
         
         return res
 
+    def _is_tax_settlement_move(self, move):
+        """True solo para asientos de diarios configurados como liquidación de impuestos."""
+        move.ensure_one()
+        journal = move.journal_id
+        return bool(journal and (journal.tax_settlement or journal.settlement_tax))
+
     def _compute_to_pay_move_line_ids(self):
         """Compute field para mostrar las líneas a pagar"""
         for payment in self:
@@ -79,8 +87,9 @@ class AccountPayment(models.Model):
         """Después de publicar el pago, reconciliar con las líneas del asiento de liquidación"""
         res = super().action_post()
         
-        # Si hay un asiento de liquidación, reconciliar con sus líneas
-        if self.settlement_move_id:
+        # Solo reconciliamos en el flujo de liquidación para evitar efectos colaterales
+        # en pagos/cobros estándar (ej. retenciones en cobranza de clientes).
+        if self.settlement_move_id and self._is_tax_settlement_move(self.settlement_move_id):
             # Obtener las líneas del asiento de liquidación que no están reconciliadas
             settlement_lines = self.settlement_move_id.line_ids.filtered(
                 lambda l: not l.reconciled 

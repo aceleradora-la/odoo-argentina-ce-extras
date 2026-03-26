@@ -29,6 +29,12 @@
             </field>
             <!-- Agregar botones de liquidación dentro del list -->
             <xpath expr="//list" position="inside">
+                <header>
+                    <button name="%(l10n_ar_account_tax_settlement.action_download_files_wizard)d"
+                            type="action"
+                            string="Descargar Archivo"
+                            context="{'from_tax_settlement_journal': True}"/>
+                </header>
                 <field name="tax_state" invisible="1"/>
                 <button name="button_create_tax_settlement_entry" 
                         icon="fa-arrow-right" 
