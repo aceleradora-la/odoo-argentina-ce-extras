@@ -4,13 +4,14 @@ from odoo import _, api, fields, models
 class AccountPayment(models.Model):
     _inherit = "account.payment"
 
-    # Campo para recibir las líneas a pagar desde el contexto
-    to_pay_move_line_ids = fields.Many2many(
+    # IMPORTANTE: no redefinir campos genéricos usados por otros módulos (ej. Deudas).
+    # Usamos un campo propio para el flujo de liquidación.
+    tax_settlement_to_pay_move_line_ids = fields.Many2many(
         "account.move.line",
-        string="Líneas a Pagar",
-        compute="_compute_to_pay_move_line_ids",
+        string="Líneas a Pagar (Liquidación)",
+        compute="_compute_tax_settlement_to_pay_move_line_ids",
         store=False,
-        help="Líneas de asientos de liquidación a pagar",
+        help="Líneas de asientos de liquidación a pagar (uso interno).",
     )
     # Campo para almacenar el ID del asiento de liquidación
     settlement_move_id = fields.Many2one(
@@ -58,7 +59,8 @@ class AccountPayment(models.Model):
                     res["amount"] = total
                 
                 # Guardar las líneas para uso posterior
-                res["to_pay_move_line_ids"] = [(6, 0, valid_lines.ids)]
+                # No tocamos `to_pay_move_line_ids` (puede pertenecer a otro módulo).
+                res["tax_settlement_to_pay_move_line_ids"] = [(6, 0, valid_lines.ids)]
         
         return res
 
@@ -68,20 +70,22 @@ class AccountPayment(models.Model):
         journal = move.journal_id
         return bool(journal and (journal.tax_settlement or journal.settlement_tax))
 
-    def _compute_to_pay_move_line_ids(self):
-        """Compute field para mostrar las líneas a pagar"""
+    def _compute_tax_settlement_to_pay_move_line_ids(self):
+        """Compute field para mostrar las líneas a pagar (liquidación)."""
         for payment in self:
             if payment.settlement_move_id:
                 # Si hay un asiento de liquidación, obtener sus líneas por pagar
-                payment.to_pay_move_line_ids = payment.settlement_move_id.line_ids.filtered(
+                payment.tax_settlement_to_pay_move_line_ids = payment.settlement_move_id.line_ids.filtered(
                     lambda l: not l.reconciled 
                     and l.account_id.account_type in ("asset_receivable", "liability_payable")
                 )
             elif self._context.get("default_to_pay_move_line_ids"):
                 # Si viene del contexto, usarlo temporalmente
-                payment.to_pay_move_line_ids = self._context["default_to_pay_move_line_ids"]
+                payment.tax_settlement_to_pay_move_line_ids = self.env["account.move.line"].browse(
+                    self._context["default_to_pay_move_line_ids"]
+                )
             else:
-                payment.to_pay_move_line_ids = False
+                payment.tax_settlement_to_pay_move_line_ids = False
 
     def action_post(self):
         """Después de publicar el pago, reconciliar con las líneas del asiento de liquidación"""
