@@ -83,35 +83,24 @@ class AccountMoveLine(models.Model):
         return settlement_journal
 
     def _get_tax_settlement_journal(self):
-        """
-        This method return the journal that can settle this move line.
-        This can be overwrited by other modules
-        """
+        """Devuelve el diario de liquidación que aplica a esta línea, buscando un diario
+        cuyos `settlement_account_tag_ids` tengan intersección con los tags de la línea
+        (`tax_repartition_line_id.tag_ids`). Si no hay coincidencia en la empresa de la
+        línea, busca en la empresa padre — útil en setups multicompañía donde los
+        diarios viven en la padre."""
         self.ensure_one()
-        # Para SICORE, buscar por tag
-        tag_sicore = self.env.ref('l10n_ar_ux.tag_ret_perc_sicore_aplicada', raise_if_not_found=False)
-        if tag_sicore and tag_sicore in (self.tax_repartition_line_id.tag_ids or []):
-            # Buscar primero en la empresa exacta de la línea
-            journal = self.env["account.journal"].search(
-                [
-                    ("company_id", "=", self.company_id.id),  # Empresa exacta
-                    ("settlement_tax", "=", "sicore_aplicado"),
-                ],
-                limit=1,
+        tag_ids = (self.tax_repartition_line_id.tag_ids or self.env["account.account.tag"]).ids
+        if not tag_ids:
+            return self.env["account.journal"]
+
+        Journal = self.env["account.journal"]
+        domain = [("settlement_account_tag_ids", "in", tag_ids)]
+        journal = Journal.search([("company_id", "=", self.company_id.id)] + domain, limit=1)
+        if not journal and self.company_id.parent_id:
+            journal = Journal.search(
+                [("company_id", "=", self.company_id.parent_id.id)] + domain, limit=1
             )
-            # Si no encuentra, buscar en la empresa padre (solo si la línea es de una empresa hija)
-            if not journal and self.company_id.parent_id:
-                journal = self.env["account.journal"].search(
-                    [
-                        ("company_id", "=", self.company_id.parent_id.id),  # Empresa padre
-                        ("settlement_tax", "=", "sicore_aplicado"),
-                    ],
-                    limit=1,
-                )
-            return journal
-        # Para otros tipos, buscar por otros tags si es necesario
-        # Por ahora retornamos vacío si no es SICORE
-        return self.env["account.journal"]
+        return journal
 
     def get_tax_settlement_file(self, journal=None):
         """
