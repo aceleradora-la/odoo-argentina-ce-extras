@@ -118,6 +118,16 @@ class AccountMoveLine(models.Model):
         Metodo que encuentra el diario para liquidar los apuntes y devuelve
         los vals requeridos en el wizard
         """
+        # Esta acción se expone como server action sobre account.move.line.
+        # Limitamos su uso al flujo de liquidación para evitar que aparezca/ejecute
+        # desde listados genéricos de apuntes contables.
+        if not self._context.get("from_tax_settlement_journal"):
+            raise ValidationError(
+                _(
+                    "Esta acción solo está disponible desde el flujo de liquidación "
+                    "de impuestos (diario de liquidación)."
+                )
+            )
         if not journal:
             journal = self.get_tax_settlement_journal()
         res = self.env["res.download_files_wizard"].action_get_files(

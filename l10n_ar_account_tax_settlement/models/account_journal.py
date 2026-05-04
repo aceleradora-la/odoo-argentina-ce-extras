@@ -1399,6 +1399,17 @@ class AccountJournal(models.Model):
                     "l10n_ar_account_tax_settlement.action_account_tax_move_line"
                 )
                 action["domain"] = self._get_tax_settlement_lines_domain_by_tags()
+                ctx = action.get("context", {})
+                if isinstance(ctx, str):
+                    from odoo.tools.safe_eval import safe_eval
+                    ctx = safe_eval(ctx)
+                ctx.update(
+                    {
+                        "from_tax_settlement_journal": True,
+                        "default_journal_id": self.id,
+                    }
+                )
+                action["context"] = ctx
                 return action
             elif debt_balance and hasattr(self, 'settlement_partner_id') and self.settlement_partner_id:
                 # Ingresa aquí al entrar en vista Kanban en diario de liquidacion en el botoncito 'Saldo a pagar'
