@@ -7,6 +7,7 @@ from odoo import _, fields, models
 from odoo.exceptions import RedirectWarning, ValidationError
 from odoo.tools import ustr
 from odoo.tools.float_utils import float_round
+from odoo.tools.safe_eval import safe_eval
 import logging
 
 _logger = logging.getLogger(__name__)
@@ -1400,7 +1401,6 @@ class AccountJournal(models.Model):
                 action["domain"] = self._get_tax_settlement_lines_domain_by_tags()
                 ctx = action.get("context", {})
                 if isinstance(ctx, str):
-                    from odoo.tools.safe_eval import safe_eval
                     ctx = safe_eval(ctx)
                 ctx.update(
                     {
@@ -1417,7 +1417,6 @@ class AccountJournal(models.Model):
                     action = self.settlement_partner_id.open_partner_ledger()
                     ctx = action.get("context", {})
                     if isinstance(ctx, str):
-                        from odoo.tools.safe_eval import safe_eval
                         ctx = safe_eval(ctx)
                     ctx.update(
                         {
