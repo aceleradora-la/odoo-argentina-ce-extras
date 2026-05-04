@@ -62,7 +62,7 @@
         <field name="res_model">account.journal</field>
         <field name="view_mode">kanban,form</field>
         <field name="view_id" ref="account.account_journal_dashboard_kanban_view"/>
-        <field name="domain">[('tax_settlement', '!=', False)]</field>
+        <field name="domain">[('tax_settlement', '!=', False), ('active', '=', True)]</field>
     </record>
 
     <!-- Menú padre para agrupar funcionalidades de impuestos argentinos -->
