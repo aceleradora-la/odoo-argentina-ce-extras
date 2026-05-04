@@ -15,89 +15,104 @@ class AccountChartTemplate(models.AbstractModel):
 
     @template(model="account.journal")
     def _get_latam_withholding_account_journal(self, template_code=False, company=False):
-        """Creamos diarios de tipo 'varios' para liquidación de impuestos cuando se instala el plan de cuentas de la compañía. Los diarios a crear dependen de la condición fiscal de la compañía"""
-        company = company or self.env.company
-        if company.chart_template in ("ar_base", "ar_ri", "ar_ex"):
-            journals_data = [
-                (
-                    "Liquidación de IIBB",
-                    "IIBB",
-                    "allow_per_line",
-                    "iibb_sufrido",
-                    self.env.ref("l10n_ar.par_iibb_pagar"),
-                    "base_iibb_a_pagar",
-                    self.env.ref("l10n_ar_ux.tax_tag_a_cuenta_iibb"),
-                )
-            ]
-            if template_code == "ar_ri":
-                journals_data += [
-                    (
-                        "Liquidación de IVA",
-                        "IVA",
-                        "vat",
-                        False,
-                        self.env.ref("l10n_ar.partner_afip"),
-                        "ri_iva_saldo_a_pagar",
-                        self.env.ref("l10n_ar_ux.tax_tag_a_cuenta_iva"),
-                    )
-                ]
+        """Crea diarios tipo 'varios' para liquidación de impuestos al instalar el plan
+        de cuentas. Los diarios dependen de la condición fiscal de la compañía.
 
-            if template_code in ("ar_ri", "ar_ex"):
-                journals_data += [
-                    (
-                        "Liquidación de Ganancias",
-                        "GAN",
-                        "profits",
-                        False,
-                        # ref('l10n_ar_ux_reports.'
-                        #     'account_financial_report_profits_position'),
-                        self.env.ref("l10n_ar.partner_afip"),
-                        "base_impuesto_ganancias_a_pagar",
-                        self.env.ref("l10n_ar_ux.tax_tag_a_cuenta_ganancias"),
-                    ),
-                    (
-                        "Liquidación SICORE Aplicado",
-                        "SICORE",
-                        "allow_per_line",
-                        "sicore_aplicado" or False,
-                        self.env.ref("l10n_ar.partner_afip"),
-                        "ri_retencion_sicore_a_pagar",
-                        self.env.ref("l10n_ar_ux.tag_ret_perc_sicore_aplicada"),
-                    ),
-                    (
-                        "Liquidación IIBB Aplicado",
-                        "IB_AP",
-                        "allow_per_line",
-                        False,  # 'iibb_aplicado', (Se debe elegir segun provincia)
-                        self.env.ref("l10n_ar.par_iibb_pagar"),
-                        # TODO flatan crear estas cuentas!
-                        "ri_retencion_iibb_a_pagar",
-                        self.env.ref("l10n_ar_ux.tag_ret_perc_iibb_aplicada"),
-                    ),
-                ]
-            res = {}
-            for name, code, type, tax, partner, account, tag in journals_data:
-                if not account:
-                    _logger.info("Skip creation of journal %s because we didn't found default account")
-                    continue
-                account_id = "account.%s_%s" % (company.id, account)
-                existing_journal = (
-                    self.env["account.journal"]
-                    .with_context(active_test=False)
-                    .search([("company_id", "=", company.id), ("code", "=", code)], limit=1)
+        Estructura de cada fila:
+            (nombre, code, tax_settlement, settlement_tax, partner_ref, account_xmlid_suffix, tag_ref)
+
+        Donde:
+            - tax_settlement: gate del diario ("yes" o "allow_per_line").
+            - settlement_tax: tipo de TXT que genera (vat, profits, sicore_aplicado, ...).
+            - tag_ref: account.account.tag que se carga en settlement_account_tag_ids
+              para que el dashboard sepa qué líneas liquida este diario.
+        """
+        company = company or self.env.company
+        if company.chart_template not in ("ar_base", "ar_ri", "ar_ex"):
+            return {}
+
+        journals_data = [
+            (
+                "Liquidación de IIBB",
+                "IIBB",
+                "allow_per_line",
+                "iibb_sufrido",
+                self.env.ref("l10n_ar.par_iibb_pagar", raise_if_not_found=False),
+                "base_iibb_a_pagar",
+                self.env.ref("l10n_ar_ux.tax_tag_a_cuenta_iibb", raise_if_not_found=False),
+            ),
+        ]
+        if template_code == "ar_ri":
+            journals_data.append(
+                (
+                    "Liquidación de IVA",
+                    "IVA",
+                    "yes",
+                    "vat",
+                    self.env.ref("l10n_ar.partner_afip", raise_if_not_found=False),
+                    "ri_iva_saldo_a_pagar",
+                    self.env.ref("l10n_ar_ux.tax_tag_a_cuenta_iva", raise_if_not_found=False),
                 )
-                if existing_journal:
-                    continue
-                account_ref = self.env.ref(account_id, raise_if_not_found=False)
-                res[code] = {
-                    "type": "general",
-                    "name": name,
-                    "code": code,
-                    "tax_settlement": type,
-                    "settlement_tax": tax or False,
-                    "settlement_partner_id": partner and partner.id or False,
-                    "settlement_account_id": account_ref.id if account_ref else None,
-                    "company_id": company.id,
-                    "show_on_dashboard": False,
-                }
-            return res
+            )
+
+        if template_code in ("ar_ri", "ar_ex"):
+            journals_data += [
+                (
+                    "Liquidación de Ganancias",
+                    "GAN",
+                    "yes",
+                    "profits",
+                    self.env.ref("l10n_ar.partner_afip", raise_if_not_found=False),
+                    "base_impuesto_ganancias_a_pagar",
+                    self.env.ref("l10n_ar_ux.tax_tag_a_cuenta_ganancias", raise_if_not_found=False),
+                ),
+                (
+                    "Liquidación SICORE Aplicado",
+                    "SICORE",
+                    "allow_per_line",
+                    "sicore_aplicado",
+                    self.env.ref("l10n_ar.partner_afip", raise_if_not_found=False),
+                    "ri_retencion_sicore_a_pagar",
+                    self.env.ref("l10n_ar_ux.tag_ret_perc_sicore_aplicada", raise_if_not_found=False),
+                ),
+                (
+                    "Liquidación IIBB Aplicado",
+                    "IB_AP",
+                    "allow_per_line",
+                    False,  # iibb_aplicado, debe elegirse según provincia
+                    self.env.ref("l10n_ar.par_iibb_pagar", raise_if_not_found=False),
+                    "ri_retencion_iibb_a_pagar",
+                    self.env.ref("l10n_ar_ux.tag_ret_perc_iibb_aplicada", raise_if_not_found=False),
+                ),
+            ]
+
+        res = {}
+        for name, code, tax_settlement, settlement_tax, partner, account_suffix, tag in journals_data:
+            if not account_suffix:
+                _logger.info("Skip creation of journal %s: missing default account", name)
+                continue
+            existing_journal = (
+                self.env["account.journal"]
+                .with_context(active_test=False)
+                .search([("company_id", "=", company.id), ("code", "=", code)], limit=1)
+            )
+            if existing_journal:
+                continue
+            account_ref = self.env.ref(
+                "account.%s_%s" % (company.id, account_suffix), raise_if_not_found=False
+            )
+            vals = {
+                "type": "general",
+                "name": name,
+                "code": code,
+                "tax_settlement": tax_settlement,
+                "settlement_tax": settlement_tax or False,
+                "settlement_partner_id": partner.id if partner else False,
+                "settlement_account_id": account_ref.id if account_ref else False,
+                "company_id": company.id,
+                "show_on_dashboard": False,
+            }
+            if tag:
+                vals["settlement_account_tag_ids"] = [(6, 0, [tag.id])]
+            res[code] = vals
+        return res
