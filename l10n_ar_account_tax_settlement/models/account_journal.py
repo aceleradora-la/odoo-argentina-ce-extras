@@ -1233,19 +1233,23 @@ class AccountJournal(models.Model):
         else:
             partner_type, payment_type = "supplier", "outbound"
 
+        # account_payment_pro popula `to_pay_move_line_ids` mediante un compute que
+        # corre solo si `pay_now` está en el contexto. Si tenemos líneas concretas,
+        # las restringimos vía active_model/active_ids; si no, dejamos que el
+        # compute traiga todo lo abierto del partner.
         context = {
             "default_partner_id": partner.id,
             "default_partner_type": partner_type,
             "default_payment_type": payment_type,
-            "create": True,
             "default_company_id": self.company_id.id,
+            "pay_now": True,
+            "create": True,
             "pop_up": True,
             "force_simple": True,
         }
-
-        # Si hay líneas pendientes de pago, agregarlas al contexto
         if open_move_line_ids:
-            context["default_to_pay_move_line_ids"] = open_move_line_ids.ids
+            context["active_model"] = "account.move.line"
+            context["active_ids"] = open_move_line_ids.ids
         
         return {
             "name": _("Registrar Pago"),

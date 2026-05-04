@@ -176,6 +176,10 @@ class AccountMoveLine(models.Model):
 
         partner_type, payment_type = self._tax_settlement_payment_kind(open_move_line_ids)
 
+        # account_payment_pro popula `to_pay_move_line_ids` mediante un compute que
+        # corre solo si `pay_now` está en el contexto. Restringimos vía
+        # active_model/active_ids para que el compute tome estas líneas y no todas
+        # las del partner.
         return {
             "name": _("Registrar Pago"),
             "view_mode": "form",
@@ -183,14 +187,16 @@ class AccountMoveLine(models.Model):
             "target": "current",
             "type": "ir.actions.act_window",
             "context": {
+                "default_partner_id": partner.id,
                 "default_partner_type": partner_type,
-                "default_to_pay_move_line_ids": open_move_line_ids.ids,
                 "default_payment_type": payment_type,
-                "create": True,
                 "default_company_id": self.company_id.id,
+                "pay_now": True,
+                "active_model": "account.move.line",
+                "active_ids": open_move_line_ids.ids,
+                "create": True,
                 "pop_up": True,
                 "force_simple": True,
-                "default_partner_id": partner.id,
             },
         }
 
