@@ -116,17 +116,26 @@ class AccountJournal(models.Model):
         string="Settlement Tax",
     )
 
-    # NEW FIELD FOR COMMUNITY
+    # Gate field; mirrors the Enterprise account_tax_settlement design.
+    # The actual settlement type lives in `settlement_tax` only.
     tax_settlement = fields.Selection(
         [
-            ("vat", "VAT"),
-            ("profits", "Profits"),
-            ("allow_per_line", "Allow per Line"),
+            ("yes", "Yes"),
+            ("allow_per_line", "Yes, allow per line"),
         ],
-        string="Tax Settlement Type",
-        help="Field used to classify journals for tax settlement purposes (formerly in Enterprise)",
+        string="Tax Settlement",
     )
-    
+
+    # Tags que este diario liquida. Equivalente al campo del módulo Enterprise:
+    # cada diario define qué etiquetas de impuesto liquida (en lugar de un
+    # mapeo hardcodeado). Las líneas a liquidar se filtran por estos tags.
+    settlement_account_tag_ids = fields.Many2many(
+        "account.account.tag",
+        "account_journal_account_tag",
+        string="Etiquetas para liquidación",
+        domain=[("applicability", "=", "taxes")],
+    )
+
     # Campos adicionales para liquidación
     settlement_partner_id = fields.Many2one(
         "res.partner",
@@ -134,7 +143,7 @@ class AccountJournal(models.Model):
         help="Partner para liquidación de impuestos",
         check_company=True,
     )
-    
+
     settlement_account_id = fields.Many2one(
         "account.account",
         string="Cuenta de contrapartida",
@@ -1123,31 +1132,18 @@ class AccountJournal(models.Model):
     ###################################
 
     def _get_tax_settlement_lines_domain_by_tags(self):
-        """
-        Función que devuelve apuntes contables que se liquidan con este diario
-        (liquidados o no)
-        Cada diario solo muestra líneas de su propia empresa, no de empresas relacionadas
-        """
+        """Apuntes contables liquidables por este diario (liquidados o no), filtrando por
+        los tags configurados en `settlement_account_tag_ids`. Misma estrategia que el
+        módulo Enterprise: el usuario indica qué tags liquida cada diario."""
         self.ensure_one()
-        # Usar exactamente la empresa del diario, no empresas relacionadas
-        company_id = self.company_id.id
-        
-        # Para SICORE, buscar por tag en lugar de por settlement_account_tag_ids
-        if self.settlement_tax == 'sicore_aplicado':
-            tag_sicore = self.env.ref('l10n_ar_ux.tag_ret_perc_sicore_aplicada', raise_if_not_found=False)
-            if not tag_sicore:
-                return [('id', '=', False)]  # No hay tag, no hay líneas
-            
-            domain = [
-                ("company_id", "=", company_id),  # Solo líneas de esta empresa exacta
-                ("tax_repartition_line_id.tag_ids", "in", [tag_sicore.id]),
-                ("parent_state", "=", "posted"),  # Solo asientos publicados
-            ]
-        else:
-            # Para otros tipos, necesitaríamos settlement_account_tag_ids que no existe en Community
-            # Por ahora, retornamos dominio vacío para otros tipos
-            # TODO: Implementar lógica para otros tipos si es necesario
-            domain = [('id', '=', False)]
+        if not self.settlement_account_tag_ids:
+            return [("id", "=", False)]
+
+        domain = [
+            ("company_id", "=", self.company_id.id),
+            ("tax_repartition_line_id.tag_ids", "in", self.settlement_account_tag_ids.ids),
+            ("parent_state", "=", "posted"),
+        ]
 
         if from_date := self._context.get("from_date"):
             domain.append(("date", ">=", from_date))

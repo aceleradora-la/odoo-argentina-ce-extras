@@ -8,6 +8,7 @@
             <field name="type" position="after">
                 <field name="tax_settlement" invisible="type != 'general'"/>
                 <field name="settlement_tax" invisible="not tax_settlement"/>
+                <field name="settlement_account_tag_ids" widget="many2many_tags" invisible="not tax_settlement"/>
                 <field name="settlement_partner_id" invisible="not tax_settlement"/>
                 <field name="settlement_account_id" invisible="type != 'general' or not tax_settlement" groups="account.group_account_readonly"/>
             </field>
