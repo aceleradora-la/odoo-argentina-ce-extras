@@ -149,24 +149,44 @@ class AccountMoveLine(models.Model):
             "target": "current",
         }
 
+    @api.model
+    def _tax_settlement_payment_kind(self, move_lines):
+        """Devuelve (partner_type, payment_type) según el tipo de cuenta de las líneas.
+        - liability_payable -> debemos al estado -> supplier/outbound
+        - asset_receivable -> el estado nos debe (devolución) -> customer/inbound
+        Si conviven los dos tipos, lanzamos error porque no podemos definir un único pago."""
+        account_types = set(move_lines.mapped("account_id.account_type"))
+        if account_types == {"liability_payable"}:
+            return "supplier", "outbound"
+        if account_types == {"asset_receivable"}:
+            return "customer", "inbound"
+        raise ValidationError(
+            _(
+                "Las líneas a pagar mezclan cuentas por cobrar y por pagar; "
+                "no es posible registrar un único pago."
+            )
+        )
+
     def action_pay_tax_settlement(self):
         """Abre el wizard de pago para el asiento de liquidación"""
         self.ensure_one()
         if not self.tax_settlement_move_id:
             raise ValidationError(_("Esta línea no tiene un asiento de liquidación asociado."))
-        
+
         # Buscar líneas del asiento de liquidación que no están reconciliadas
         open_move_line_ids = self.tax_settlement_move_id.line_ids.filtered(
             lambda r: not r.reconciled and r.account_id.account_type in ("asset_receivable", "liability_payable")
         )
-        
+
         if not open_move_line_ids:
             raise ValidationError(_("No hay líneas pendientes de pago en el asiento de liquidación."))
-        
+
         partner = open_move_line_ids.mapped("partner_id")
         if len(partner) != 1:
             raise ValidationError(_("El asiento de liquidación debe tener un único partner."))
-        
+
+        partner_type, payment_type = self._tax_settlement_payment_kind(open_move_line_ids)
+
         return {
             "name": _("Registrar Pago"),
             "view_mode": "form",
@@ -174,9 +194,9 @@ class AccountMoveLine(models.Model):
             "target": "current",
             "type": "ir.actions.act_window",
             "context": {
-                "default_partner_type": "supplier",
+                "default_partner_type": partner_type,
                 "default_to_pay_move_line_ids": open_move_line_ids.ids,
-                "default_payment_type": "outbound",
+                "default_payment_type": payment_type,
                 "create": True,
                 "default_company_id": self.company_id.id,
                 "pop_up": True,

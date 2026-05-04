@@ -1227,17 +1227,26 @@ class AccountJournal(models.Model):
         open_move_line_ids = settlement_moves.line_ids.filtered(
             lambda r: not r.reconciled and r.account_id.account_type in ("asset_receivable", "liability_payable")
         )
-        
+
+        # Inferimos partner_type/payment_type a partir del tipo de cuenta de las líneas.
+        # Si no hay líneas (no se cargó liquidación todavía), asumimos pago a proveedor.
+        if open_move_line_ids:
+            partner_type, payment_type = self.env["account.move.line"]._tax_settlement_payment_kind(
+                open_move_line_ids
+            )
+        else:
+            partner_type, payment_type = "supplier", "outbound"
+
         context = {
             "default_partner_id": partner.id,
-            "default_partner_type": "supplier",
-            "default_payment_type": "outbound",
+            "default_partner_type": partner_type,
+            "default_payment_type": payment_type,
             "create": True,
             "default_company_id": self.company_id.id,
             "pop_up": True,
             "force_simple": True,
         }
-        
+
         # Si hay líneas pendientes de pago, agregarlas al contexto
         if open_move_line_ids:
             context["default_to_pay_move_line_ids"] = open_move_line_ids.ids
