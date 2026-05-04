@@ -23,45 +23,42 @@ class AccountPayment(models.Model):
 
     @api.model
     def default_get(self, fields_list):
-        """Procesar to_pay_move_line_ids del contexto"""
+        """Procesar to_pay_move_line_ids del contexto solo cuando las líneas pertenecen
+        a un diario de liquidación. En otros flujos (Deudas, retenciones de cobranza,
+        pagos genéricos) salimos sin tocar nada para no interferir con esos módulos."""
         res = super().default_get(fields_list)
-        
-        # Si viene to_pay_move_line_ids en el contexto, procesarlo
+
         move_line_ids = self._context.get("default_to_pay_move_line_ids", [])
-        if move_line_ids:
-            move_lines = self.env["account.move.line"].browse(move_line_ids)
-            # Filtrar solo líneas válidas (no reconciliadas, cuentas por pagar)
-            valid_lines = move_lines.filtered(
-                lambda l: not l.reconciled 
-                and l.account_id.account_type in ("asset_receivable", "liability_payable")
-            )
-            
-            if valid_lines:
-                # Obtener el asiento de liquidación (debe ser el mismo para todas las líneas)
-                settlement_moves = valid_lines.mapped("move_id")
-                if len(settlement_moves) == 1:
-                    # Solo marcamos settlement_move_id si proviene de un diario de liquidación.
-                    if self._is_tax_settlement_move(settlement_moves):
-                        res["settlement_move_id"] = settlement_moves.id
-                
-                # Si no hay partner_id, obtenerlo de las líneas
-                if not res.get("partner_id") and valid_lines:
-                    partners = valid_lines.mapped("partner_id")
-                    if len(partners) == 1:
-                        res["partner_id"] = partners.id
-                
-                # Calcular el monto total si no está establecido
-                # Para cuentas por pagar, el balance puede ser negativo (crédito) o positivo (débito)
-                # Necesitamos el valor absoluto de cada línea y sumarlos
-                if not res.get("amount"):
-                    # Sumar los valores absolutos de cada línea
-                    total = sum(abs(line.balance) for line in valid_lines)
-                    res["amount"] = total
-                
-                # Guardar las líneas para uso posterior
-                # No tocamos `to_pay_move_line_ids` (puede pertenecer a otro módulo).
-                res["tax_settlement_to_pay_move_line_ids"] = [(6, 0, valid_lines.ids)]
-        
+        if not move_line_ids:
+            return res
+
+        move_lines = self.env["account.move.line"].browse(move_line_ids)
+        settlement_moves = move_lines.mapped("move_id").filtered(self._is_tax_settlement_move)
+        if not settlement_moves:
+            # Ninguna línea proviene de un diario de liquidación: no es nuestro flujo.
+            return res
+
+        valid_lines = move_lines.filtered(
+            lambda l: not l.reconciled
+            and l.move_id in settlement_moves
+            and l.account_id.account_type in ("asset_receivable", "liability_payable")
+        )
+        if not valid_lines:
+            return res
+
+        if len(settlement_moves) == 1:
+            res["settlement_move_id"] = settlement_moves.id
+
+        if not res.get("partner_id"):
+            partners = valid_lines.mapped("partner_id")
+            if len(partners) == 1:
+                res["partner_id"] = partners.id
+
+        if not res.get("amount"):
+            res["amount"] = sum(abs(line.balance) for line in valid_lines)
+
+        # No tocamos `to_pay_move_line_ids` (puede pertenecer a otro módulo).
+        res["tax_settlement_to_pay_move_line_ids"] = [(6, 0, valid_lines.ids)]
         return res
 
     def _is_tax_settlement_move(self, move):
