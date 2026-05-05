@@ -21,9 +21,13 @@ def l10n_ar_account_tax_settlement_post_init_hook(env):
     campos Selection custom (tax_settlement / settlement_tax). Acá usamos
     `create()` directamente y, si el diario ya existe, le completamos los campos
     de liquidación que estén vacíos para no perder la configuración manual del
-    usuario."""
+    usuario.
 
-    Journal = env["account.journal"]
+    Multi-compañía: para cada company AR conmutamos el contexto vía
+    `with_company` y `allowed_company_ids` así los `search`/`create` no son
+    filtrados por la `ir.rule` de account.journal y caen en la company correcta
+    aunque la sesión de instalación esté parada en otra."""
+
     ChartTemplate = env["account.chart.template"]
 
     ar_companies = env["res.company"].search(
@@ -32,15 +36,21 @@ def l10n_ar_account_tax_settlement_post_init_hook(env):
 
     touched = []
     for company in ar_companies:
-        journals_data = ChartTemplate._get_latam_withholding_account_journal(
+        journals_data = ChartTemplate.with_company(company)._get_latam_withholding_account_journal(
             template_code=company.chart_template, company=company
         )
         if not journals_data:
             continue
 
+        Journal = (
+            env["account.journal"]
+            .with_company(company)
+            .with_context(allowed_company_ids=[company.id])
+        )
+
         for code, vals in journals_data.items():
             existing = (
-                Journal.with_context(active_test=False)
+                Journal.with_context(active_test=False, allowed_company_ids=[company.id])
                 .search([("company_id", "=", company.id), ("code", "=", code)], limit=1)
             )
             if existing:
