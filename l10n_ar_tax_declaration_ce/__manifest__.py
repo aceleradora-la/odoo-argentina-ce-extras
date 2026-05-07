@@ -10,7 +10,7 @@
 ##############################################################################
 {
     "name": "Declaración Fiscal Argentina (Community)",
-    "version": "18.0.1.0.0",
+    "version": "17.0.1.0.0",
     "category": "Accounting",
     "author": "Aceleradora-Latam",
     "website": "https://github.com/ingadhoc",
