@@ -27,7 +27,6 @@
     "data": [
         "security/ir.model.access.csv",
         "views/account_vat_ledger_view.xml",
-        "views/menu.xml",
         "wizards/tax_closing_wizard_view.xml",
     ],
     "installable": True,
