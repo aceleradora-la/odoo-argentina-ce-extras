@@ -38,6 +38,14 @@ class L10nArTaxClosingWizard(models.TransientModel):
         required=True,
         default="vat_perceptions",
     )
+    partner_id = fields.Many2one(
+        "res.partner",
+        string="Organismo recaudador",
+        default=lambda self: self.env.ref("l10n_ar.partner_afip", raise_if_not_found=False),
+        help="Partner (ARCA/AFIP) que se asigna a la contrapartida del cierre. "
+        "Con una cuenta de tipo 'A pagar' conciliable, la línea queda como deuda "
+        "abierta y puede pagarse desde el Libro IVA.",
+    )
     payable_account_id = fields.Many2one(
         "account.account",
         string="Cuenta saldo a pagar",
@@ -215,14 +223,18 @@ class L10nArTaxClosingWizard(models.TransientModel):
                         _("El período arroja saldo a favor: configure la 'Cuenta saldo a favor'.")
                     )
                 label = _("Saldo a favor %s") % self._get_period_label()
-            move_lines.append(
-                {
-                    "name": label,
-                    "account_id": account.id,
-                    "debit": net_balance if net_balance > 0.0 else 0.0,
-                    "credit": -net_balance if net_balance < 0.0 else 0.0,
-                }
-            )
+            counterpart_vals = {
+                "name": label,
+                "account_id": account.id,
+                "debit": net_balance if net_balance > 0.0 else 0.0,
+                "credit": -net_balance if net_balance < 0.0 else 0.0,
+            }
+            # Con partner + cuenta por pagar/cobrar, la contrapartida queda como
+            # deuda abierta del organismo y habilita el circuito de pago.
+            if self.partner_id and account.account_type in ("liability_payable", "asset_receivable"):
+                counterpart_vals["partner_id"] = self.partner_id.id
+                counterpart_vals["date_maturity"] = self.date_to
+            move_lines.append(counterpart_vals)
 
         move = self.env["account.move"].create(
             {

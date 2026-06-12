@@ -8,6 +8,7 @@
         <field name="arch" type="xml">
             <xpath expr="//header" position="inside">
                 <field name="tax_closing_move_id" invisible="1"/>
+                <field name="tax_closing_payment_state" invisible="1"/>
                 <button name="action_open_tax_closing"
                         string="Asiento de cierre"
                         type="object"
@@ -16,6 +17,11 @@
                         string="Ver asiento de cierre"
                         type="object"
                         invisible="not tax_closing_move_id"/>
+                <button name="action_pay_tax_closing"
+                        string="Pagar cierre"
+                        type="object"
+                        class="btn-primary"
+                        invisible="tax_closing_payment_state != 'to_pay'"/>
             </xpath>
             <xpath expr="//page[@name='txt_files']" position="after">
                 <page string="IVA Simple (ZIP)" name="iva_simple">
