@@ -18,6 +18,9 @@
                             <field name="scope" widget="radio"/>
                         </group>
                         <group>
+                            <!-- Siempre presente (invisible): los dominios check_company
+                                 de las cuentas lo necesitan fuera del grupo multi-company. -->
+                            <field name="company_id" invisible="1"/>
                             <field name="company_id" groups="base.group_multi_company"/>
                             <field name="journal_id"/>
                             <field name="payable_account_id"/>
