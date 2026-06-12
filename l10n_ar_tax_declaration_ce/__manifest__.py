@@ -10,27 +10,27 @@
 ##############################################################################
 {
     "name": "Declaración Fiscal Argentina (Community)",
-    "version": "18.0.1.0.0",
+    "version": "18.0.2.0.0",
     "category": "Accounting",
     "author": "Aceleradora-Latam",
-    "website": "https://github.com/ingadhoc",
+    "website": "https://github.com/aceleradora-la/odoo-argentina-ce-extras",
     "license": "AGPL-3",
+    "summary": "Libro de IVA argentino, exports PDF/XLSX/ZIP y Cierre de Impuestos para Community",
     "depends": [
         "account",
         "l10n_ar",
         # Reusamos el export de Libro IVA Digital (ZIP) existente.
         "l10n_ar_account_reports",
     ],
-    # Nota: este módulo es compatible conceptualmente con Odoo 17/18,
-    # pero este repo corre sobre rama 18.0. El backport a 17 se realiza
-    # aplicando el mismo módulo en la rama 17.0 con ajustes mínimos si hicieran falta.
     "data": [
         "security/ir.model.access.csv",
+        "views/vat_book_line_views.xml",
         "views/menu.xml",
         "views/tax_declaration_wizard_view.xml",
         "views/tax_report_views.xml",
+        "wizards/tax_closing_wizard_view.xml",
+        "reports/vat_book_report.xml",
     ],
     "installable": True,
     "application": False,
 }
-
