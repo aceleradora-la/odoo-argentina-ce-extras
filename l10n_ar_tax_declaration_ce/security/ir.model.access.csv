@@ -2,4 +2,5 @@ id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
 access_l10n_ar_tax_declaration_wizard,l10n_ar_tax_declaration_wizard,model_l10n_ar_tax_declaration_wizard,account.group_account_user,1,1,1,1
 access_l10n_ar_tax_report_wizard,l10n_ar_tax_report_wizard,model_l10n_ar_tax_report_wizard,account.group_account_user,1,1,1,1
 access_l10n_ar_tax_report_line,l10n_ar_tax_report_line,model_l10n_ar_tax_report_line,account.group_account_user,1,0,0,0
-
+access_l10n_ar_vat_book_line,l10n_ar_vat_book_line,model_l10n_ar_vat_book_line,account.group_account_user,1,0,0,0
+access_l10n_ar_tax_closing_wizard,l10n_ar_tax_closing_wizard,model_l10n_ar_tax_closing_wizard,account.group_account_user,1,1,1,1

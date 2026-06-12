@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="paperformat_vat_book" model="report.paperformat">
+        <field name="name">Libro IVA AR (A4 apaisado)</field>
+        <field name="format">A4</field>
+        <field name="orientation">Landscape</field>
+        <field name="margin_top">28</field>
+        <field name="margin_bottom">18</field>
+        <field name="margin_left">5</field>
+        <field name="margin_right">5</field>
+        <field name="header_spacing">22</field>
+        <field name="dpi">90</field>
+    </record>
+
+    <record id="action_report_vat_book" model="ir.actions.report">
+        <field name="name">Libro de IVA Argentino</field>
+        <field name="model">l10n_ar.vat.book.line</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">l10n_ar_tax_declaration_ce.report_vat_book</field>
+        <field name="report_file">l10n_ar_tax_declaration_ce.report_vat_book</field>
+        <field name="paperformat_id" ref="paperformat_vat_book"/>
+        <field name="print_report_name">'Libro IVA AR'</field>
+    </record>
+
+    <template id="report_vat_book">
+        <t t-call="web.html_container">
+            <t t-set="company" t-value="docs and docs[0].company_id or res_company"/>
+            <t t-set="dates" t-value="[d for d in docs.mapped('date') if d]"/>
+            <t t-call="web.internal_layout">
+                <div class="page">
+                    <div class="text-center mb-3">
+                        <h4>LIBRO DE IVA ARGENTINO</h4>
+                        <div>
+                            <strong t-out="company.name"/>
+                            <span t-if="company.vat"> - CUIT: <span t-out="company.vat"/></span>
+                        </div>
+                        <div t-if="dates">
+                            Período: <span t-out="min(dates).strftime('%d/%m/%Y')"/> al
+                            <span t-out="max(dates).strftime('%d/%m/%Y')"/>
+                        </div>
+                    </div>
+                    <table class="table table-sm" style="font-size: 9px;">
+                        <thead>
+                            <tr style="background-color: #f0f0f0;">
+                                <th>Fecha</th>
+                                <th>Nombre</th>
+                                <th>Cond. IVA</th>
+                                <th>CUIT</th>
+                                <th class="text-end">Gravado</th>
+                                <th class="text-end">No gravado</th>
+                                <th class="text-end">IVA 10,5%</th>
+                                <th class="text-end">IVA 21%</th>
+                                <th class="text-end">IVA 27%</th>
+                                <th class="text-end">Perc. IVA</th>
+                                <th class="text-end">Perc. IIBB</th>
+                                <th class="text-end">Gcia. perc.</th>
+                                <th class="text-end">Municipales</th>
+                                <th class="text-end">Otros impuestos</th>
+                                <th class="text-end">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr t-foreach="docs" t-as="line">
+                                <td><span t-out="line.date" t-options="{'widget': 'date'}"/></td>
+                                <td>
+                                    <span t-out="line.move_name"/>
+                                    <br/>
+                                    <small t-out="line.partner_id.name"/>
+                                </td>
+                                <td><span t-out="line.afip_responsibility_type_id.name or ''"/></td>
+                                <td><span t-out="line.cuit or ''"/></td>
+                                <td class="text-end"><span t-out="line.taxed" t-options="{'widget': 'float', 'precision': 2}"/></td>
+                                <td class="text-end"><span t-out="line.not_taxed" t-options="{'widget': 'float', 'precision': 2}"/></td>
+                                <td class="text-end"><span t-out="line.vat_10_5" t-options="{'widget': 'float', 'precision': 2}"/></td>
+                                <td class="text-end"><span t-out="line.vat_21" t-options="{'widget': 'float', 'precision': 2}"/></td>
+                                <td class="text-end"><span t-out="line.vat_27" t-options="{'widget': 'float', 'precision': 2}"/></td>
+                                <td class="text-end"><span t-out="line.perc_vat" t-options="{'widget': 'float', 'precision': 2}"/></td>
+                                <td class="text-end"><span t-out="line.perc_iibb" t-options="{'widget': 'float', 'precision': 2}"/></td>
+                                <td class="text-end"><span t-out="line.perc_profits" t-options="{'widget': 'float', 'precision': 2}"/></td>
+                                <td class="text-end"><span t-out="line.municipal" t-options="{'widget': 'float', 'precision': 2}"/></td>
+                                <td class="text-end"><span t-out="line.other_taxes + line.vat_25 + line.vat_5" t-options="{'widget': 'float', 'precision': 2}"/></td>
+                                <td class="text-end"><span t-out="line.total" t-options="{'widget': 'float', 'precision': 2}"/></td>
+                            </tr>
+                        </tbody>
+                        <tfoot>
+                            <tr style="font-weight: bold; border-top: 2px solid #000;">
+                                <td colspan="4">Totales</td>
+                                <td class="text-end"><span t-out="sum(docs.mapped('taxed'))" t-options="{'widget': 'float', 'precision': 2}"/></td>
+                                <td class="text-end"><span t-out="sum(docs.mapped('not_taxed'))" t-options="{'widget': 'float', 'precision': 2}"/></td>
+                                <td class="text-end"><span t-out="sum(docs.mapped('vat_10_5'))" t-options="{'widget': 'float', 'precision': 2}"/></td>
+                                <td class="text-end"><span t-out="sum(docs.mapped('vat_21'))" t-options="{'widget': 'float', 'precision': 2}"/></td>
+                                <td class="text-end"><span t-out="sum(docs.mapped('vat_27'))" t-options="{'widget': 'float', 'precision': 2}"/></td>
+                                <td class="text-end"><span t-out="sum(docs.mapped('perc_vat'))" t-options="{'widget': 'float', 'precision': 2}"/></td>
+                                <td class="text-end"><span t-out="sum(docs.mapped('perc_iibb'))" t-options="{'widget': 'float', 'precision': 2}"/></td>
+                                <td class="text-end"><span t-out="sum(docs.mapped('perc_profits'))" t-options="{'widget': 'float', 'precision': 2}"/></td>
+                                <td class="text-end"><span t-out="sum(docs.mapped('municipal'))" t-options="{'widget': 'float', 'precision': 2}"/></td>
+                                <td class="text-end"><span t-out="sum(docs.mapped('other_taxes')) + sum(docs.mapped('vat_25')) + sum(docs.mapped('vat_5'))" t-options="{'widget': 'float', 'precision': 2}"/></td>
+                                <td class="text-end"><span t-out="sum(docs.mapped('total'))" t-options="{'widget': 'float', 'precision': 2}"/></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </t>
+        </t>
+    </template>
+</odoo>

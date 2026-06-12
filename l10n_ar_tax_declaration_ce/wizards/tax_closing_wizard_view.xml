@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_l10n_ar_tax_closing_wizard_form" model="ir.ui.view">
+        <field name="name">l10n_ar.tax.closing.wizard.form</field>
+        <field name="model">l10n_ar.tax.closing.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Cierre de impuestos">
+                <sheet>
+                    <div class="alert alert-info" role="alert">
+                        Se generará un asiento <strong>en borrador</strong> que revierte los
+                        saldos de las cuentas de IVA del período contra la cuenta de saldo
+                        a pagar / a favor. Revise el asiento antes de publicarlo.
+                    </div>
+                    <group>
+                        <group>
+                            <field name="date_from"/>
+                            <field name="date_to"/>
+                            <field name="scope" widget="radio"/>
+                        </group>
+                        <group>
+                            <field name="company_id" groups="base.group_multi_company"/>
+                            <field name="journal_id"/>
+                            <field name="payable_account_id"/>
+                            <field name="receivable_account_id"/>
+                        </group>
+                    </group>
+                </sheet>
+                <footer>
+                    <button name="action_generate" string="Generar asiento" type="object" class="btn-primary"/>
+                    <button string="Cancelar" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+</odoo>
