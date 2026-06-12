@@ -10,8 +10,12 @@ except ImportError:
     PANDAS_AVAILABLE = False
     pd = None
 
+import logging
+
 from odoo import _, api, models
 from odoo.exceptions import UserError
+
+_logger = logging.getLogger(__name__)
 
 
 class AccountJournal(models.Model):
@@ -88,10 +92,13 @@ class AccountJournal(models.Model):
         # Si tenemos un journal válido y archivos Excel, intentar usar nuestro proceso de importación
         # El método import_bills_from_xls validará el formato y manejará errores
         try:
-            return journal.import_bills_from_xls(attachments)
+            # Savepoint: si la importación falla a mitad de camino (formato
+            # inesperado, error SQL) revertimos sus escrituras parciales antes
+            # de delegar en el flujo estándar.
+            with self.env.cr.savepoint():
+                return journal.import_bills_from_xls(attachments)
         except Exception:
-            # Si hay error (formato incorrecto, pandas no disponible, etc.), 
-            # dejar que el método original lo maneje
+            _logger.info("Fallo la importación AFIP del Excel, se delega al flujo estándar", exc_info=True)
             return super().create_document_from_attachment(attachment_ids=attachment_ids)
 
     def action_import_bills_from_xls(self):

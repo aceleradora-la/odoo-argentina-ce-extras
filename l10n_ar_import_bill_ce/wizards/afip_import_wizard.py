@@ -1,6 +1,6 @@
 ﻿import math
 
-from odoo import _, fields, models
+from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 
 
@@ -21,11 +21,15 @@ class AfipImportWizard(models.TransientModel):
         string="Total de Facturas Existentes",
     )
 
+    @api.depends("line_ids.exists")
     def _compute_bills_to_create(self):
-        self.total_bills_to_create = len(self.line_ids.filtered(lambda l: not l.exists))
+        for wizard in self:
+            wizard.total_bills_to_create = len(wizard.line_ids.filtered(lambda l: not l.exists))
 
+    @api.depends("line_ids.exists")
     def _compute_bills_exists(self):
-        self.total_bills_exists = len(self.line_ids.filtered(lambda l: l.exists))
+        for wizard in self:
+            wizard.total_bills_exists = len(wizard.line_ids.filtered(lambda l: l.exists))
 
     def action_confirm(self):
         if all(line.exists for line in self.line_ids):
@@ -55,6 +59,7 @@ class AfipImportWizard(models.TransientModel):
         
         base_domain = [
             ("price_include", "=", False),
+            ("type_tax_use", "=", tax_use_type),
             ("company_id", "in", company_ids),
         ]
         tax_iva_no_corresponde = self.env["account.tax"].search(
@@ -64,18 +69,11 @@ class AfipImportWizard(models.TransientModel):
             base_domain + [("tax_group_id.l10n_ar_vat_afip_code", "=", "1")], limit=1
         )
         
-        # Buscar impuesto de Otros Tributos
-        # Intentar primero con l10n_ar_tribute_afip_code si existe
-        # Intentamos directamente la búsqueda; si el campo no existe, simplemente no encontrará resultados
-        tax_otros_tributos = False
-        try:
-            tax_otros_tributos = self.env["account.tax"].search(
-                base_domain + [("tax_group_id.l10n_ar_tribute_afip_code", "=", "99")], limit=1
-            )
-        except Exception:
-            # Si el campo no existe o hay algún error, continuamos con los fallbacks
-            pass
-        
+        # Buscar impuesto de Otros Tributos por código AFIP de tributo (campo de l10n_ar).
+        tax_otros_tributos = self.env["account.tax"].search(
+            base_domain + [("tax_group_id.l10n_ar_tribute_afip_code", "=", "99")], limit=1
+        )
+
         # Si no se encontró, buscar por nombre del grupo de impuestos
         if not tax_otros_tributos:
             # Buscar grupo de impuestos con nombre que contenga "Otros Tributos" o "Otro Tributo"
@@ -126,8 +124,7 @@ class AfipImportWizard(models.TransientModel):
                 "company_id": self.company_id.id,
                 "line_ids": [],
             }
-            # Agregar l10n_ar_afip_auth_code solo si el campo existe (puede no estar en Community)
-            if hasattr(self.env["account.move"], "_fields") and "l10n_ar_afip_auth_code" in self.env["account.move"]._fields:
+            if line.cae:
                 move_vals["l10n_ar_afip_auth_code"] = line.cae
 
             # Agregamos la linea con IVA y otros tributos (si existen).
@@ -186,6 +183,14 @@ class AfipImportWizard(models.TransientModel):
                 if line.otros_tributos > 0:
                     base_amount -= line.otros_tributos
 
+                if not tax_iva_no_corresponde:
+                    raise UserError(
+                        _(
+                            "No se encontró un impuesto 'IVA No Corresponde' de tipo %s. "
+                            "Cree un impuesto con el grupo de IVA código AFIP 0."
+                        )
+                        % tax_use_type
+                    )
                 move_vals["line_ids"].append(line._create_line(base_amount, [tax_iva_no_corresponde.id]))
 
             move = self.env["account.move"].create(move_vals)
@@ -275,10 +280,6 @@ class AfipImportWizard(models.TransientModel):
                         ]
                     }
                 )
-                # Recalcular los totales
-                # En Community Edition, Odoo recalcula automáticamente los totales al guardar
-                # Hacemos un write vacío para forzar el guardado y recálculo
-                move.write({})
 
             # Confirm the invoice only if auto_validate is True and the total matches line.amount_total
             if self.auto_validate and abs(move.amount_total - line.amount_total) <= 0.10 and line.amount_total > 0:

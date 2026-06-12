@@ -105,6 +105,8 @@ class L10nArVatBookWizard(models.TransientModel):
         return tuple(self.env["account.move"].search(domain, order="invoice_date asc, name asc, id asc").ids)
 
     def _vat_simple_transform_column(self, value):
+        if value is None:
+            return ""
         if isinstance(value, (int, float)):
             if value < 0:
                 value = -value
