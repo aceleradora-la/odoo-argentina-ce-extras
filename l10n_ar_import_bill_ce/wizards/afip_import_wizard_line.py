@@ -38,54 +38,41 @@ class AfipImportWizardLine(models.TransientModel):
 
     @api.depends("invoice_number", "partner_vat")
     def _compute_exists(self):
-        for line in self:
-            if not line.invoice_number or not line.partner_vat:
-                line.exists = False
+        # Una sola búsqueda por wizard: con archivos de ARCA de cientos de líneas,
+        # buscar facturas línea por línea era O(n) consultas con limit=100 cada una.
+        for wizard in self.mapped("wizard_id"):
+            lines = self.filtered(lambda l: l.wizard_id == wizard)
+            valid_lines = lines.filtered(
+                lambda l: l.invoice_number and str(l.invoice_number).strip()
+                and l.partner_vat and str(l.partner_vat).strip()
+            )
+            (lines - valid_lines).exists = False
+            if not valid_lines:
                 continue
-                
-            # Normalizar el número de factura (eliminar espacios)
-            invoice_number = str(line.invoice_number).strip() if line.invoice_number else ""
-            partner_vat = str(line.partner_vat).strip() if line.partner_vat else ""
-            
-            if not invoice_number or not partner_vat:
-                line.exists = False
-                continue
-                
-            # Determine move types based on journal type
-            if line.wizard_id.journal_id.type == "sale":
+
+            if wizard.journal_id.type == "sale":
                 move_types = ["out_refund", "out_invoice"]
             else:
                 move_types = ["in_refund", "in_invoice"]
 
-            # Search using l10n_latam_document_number for exact match
-            # This is the field where the invoice number is actually stored
-            move_model = line.env["account.move"]
-            
-            # Buscar usando l10n_latam_document_number (método preferido)
-            # Buscar facturas del mismo proveedor y tipo, luego verificar manualmente el número
-            # para evitar problemas con espacios o formato diferente
-            existing_invoice = False
-            domain = [
-                ("move_type", "in", move_types),
-                ("partner_id.vat", "=", partner_vat),
-                ("company_id", "=", line.wizard_id.company_id.id),
-            ]
-            candidates = move_model.search(domain, limit=100)
-            
-            # Verificar manualmente que el número coincida exactamente
-            # (normalizando espacios para evitar problemas de formato)
-            for candidate in candidates:
-                doc_number = getattr(candidate, 'l10n_latam_document_number', False)
-                if doc_number:
-                    # Normalizar el número del campo (eliminar espacios)
-                    normalized_doc_number = str(doc_number).strip()
-                    if normalized_doc_number == invoice_number:
-                        existing_invoice = candidate
-                        break
-            
-            # Solo usar l10n_latam_document_number para evitar falsos positivos
-            # Si el campo está vacío o no coincide, la factura no existe (correcto)
-            line.exists = bool(existing_invoice)
+            numbers = list({str(l.invoice_number).strip() for l in valid_lines})
+            vats = list({str(l.partner_vat).strip() for l in valid_lines})
+            candidates = self.env["account.move"].search(
+                [
+                    ("move_type", "in", move_types),
+                    ("partner_id.vat", "in", vats),
+                    ("company_id", "=", wizard.company_id.id),
+                    ("l10n_latam_document_number", "in", numbers),
+                ]
+            )
+            # Normalizamos espacios igual que antes para evitar falsos negativos.
+            existing_keys = {
+                (str(m.partner_id.vat).strip(), str(m.l10n_latam_document_number).strip())
+                for m in candidates
+            }
+            for line in valid_lines:
+                key = (str(line.partner_vat).strip(), str(line.invoice_number).strip())
+                line.exists = key in existing_keys
 
     def _get_partner_by_vat(self):
         """
@@ -95,7 +82,17 @@ class AfipImportWizardLine(models.TransientModel):
         """
         self.ensure_one()
 
-        partner = self.env["res.partner"].search([("vat", "=", self.partner_vat)], limit=1)
+        # Solo partners raíz (no contactos hijos) visibles para la compañía del wizard.
+        partner = self.env["res.partner"].search(
+            [
+                ("vat", "=", self.partner_vat),
+                ("parent_id", "=", False),
+                "|",
+                ("company_id", "=", False),
+                ("company_id", "=", self.wizard_id.company_id.id),
+            ],
+            limit=1,
+        )
 
         if not partner:
             identification_type = self.env["l10n_latam.identification.type"].search(
@@ -112,7 +109,8 @@ class AfipImportWizardLine(models.TransientModel):
             )
             # Si el tipo de identificación es CUIT (código AFIP 80), intentamos actualizar los datos desde AFIP
             # Este método puede no estar disponible en Community, verificar si existe
-            if partner.l10n_latam_identification_type_id.l10n_ar_afip_code == 80:
+            # l10n_ar_afip_code es Char: comparar como string.
+            if str(partner.l10n_latam_identification_type_id.l10n_ar_afip_code) == "80":
                 if hasattr(partner, 'button_update_partner_data_from_afip'):
                     try:
                         partner.button_update_partner_data_from_afip()

@@ -543,6 +543,11 @@ class AccountJournal(models.Model):
             elif tax.l10n_ar_withholding_payment_type in ["customer", "supplier"]:
                 # tax.withholding_type == 'partner_tax':
                 content = "1"
+            else:
+                raise ValidationError(
+                    _("El impuesto '%s' no es percepción ni retención: no se puede incluir en el TXT de AGIP.")
+                    % tax.name
+                )
 
             # notas de credito
             if internal_type == "credit_note":
@@ -1019,6 +1024,14 @@ class AccountJournal(models.Model):
                 codop = "2"
                 # Importe del comprobante
                 amount_tot = abs(move.amount_total_signed)
+            else:
+                raise ValidationError(
+                    _(
+                        "El apunte %s (id %s) no proviene ni de un pago ni de una "
+                        "factura: no se puede incluir en el TXT de SICORE."
+                    )
+                    % (line.display_name, line.id)
+                )
 
             # Importe Comprobante            [16]
             content += "%016.2f" % amount_tot

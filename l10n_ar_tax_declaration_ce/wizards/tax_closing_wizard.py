@@ -78,7 +78,12 @@ class L10nArTaxClosingWizard(models.TransientModel):
         vat_groups = (
             self.env["account.tax.group"]
             .with_company(company)
-            .search([("l10n_ar_vat_afip_code", "!=", False)])
+            .search(
+                [
+                    ("l10n_ar_vat_afip_code", "!=", False),
+                    ("company_id", "=", company.id),
+                ]
+            )
         )
         if "payable_account_id" in fields_list and not res.get("payable_account_id"):
             payable = vat_groups.mapped("tax_payable_account_id")[:1]
@@ -134,7 +139,9 @@ class L10nArTaxClosingWizard(models.TransientModel):
         if self.date_from > self.date_to:
             raise ValidationError(_("La fecha desde no puede ser mayor a la fecha hasta."))
 
-        ref = _("Cierre de impuestos: %s") % self._get_period_label()
+        # Sin _(): el ref se usa como clave de detección de duplicados y debe
+        # ser idéntico sin importar el idioma del usuario que genera el cierre.
+        ref = "Cierre de impuestos: %s" % self._get_period_label()
         existing = self.env["account.move"].search(
             [
                 ("ref", "=", ref),

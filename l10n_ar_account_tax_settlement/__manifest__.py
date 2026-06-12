@@ -23,7 +23,7 @@
     "category": "Accounting",
     "author": "ADHOC SA, Aceleradora-Latam",
     "website": "www.adhoc.com.ar",
-    "license": "LGPL-3",
+    "license": "AGPL-3",
     "images": [],
     "depends": [
         "account",

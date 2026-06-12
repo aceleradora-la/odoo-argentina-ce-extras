@@ -26,15 +26,19 @@ class InflationAdjustmentIndex(models.Model):
 
     @api.model
     def find(self, date, closest=False):
-        """:return: recordset (empty if not found)"""
+        """:return: recordset (empty if not found). Con closest=True, si no hay
+        índice para el mes pedido devuelve el último índice anterior."""
         range = self.get_dates(date)
-        return self.search(
+        index = self.search(
             [
                 ("date", ">=", range.get("date_from")),
                 ("date", "<=", range.get("date_to")),
             ],
             limit=1,
         )
+        if not index and closest:
+            index = self.search([("date", "<=", range.get("date_to"))], order="date desc", limit=1)
+        return index
 
     @api.constrains("date")
     def check_date_unique(self):
@@ -54,9 +58,15 @@ class InflationAdjustmentIndex(models.Model):
             if date.day != 1:
                 raise ValidationError(_("El indice debe comenzar el primer día de cada mes"))
 
-    @api.constrains("date")
-    def check_xml_id(self):
-        """always create the xml_id when create a new record of this model."""
+    @api.model_create_multi
+    def create(self, vals_list):
+        records = super().create(vals_list)
+        records._ensure_xml_id()
+        return records
+
+    def _ensure_xml_id(self):
+        """Crea el xml_id de los índices cargados a mano para que las
+        actualizaciones del módulo (noupdate) no los dupliquen."""
         if self.env.context.get("install_mode", False) and not self.env.context.get("import_file"):
             return
 

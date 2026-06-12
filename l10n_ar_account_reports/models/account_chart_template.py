@@ -14,18 +14,9 @@ from odoo import models
 class AccountChartTemplate(models.AbstractModel):
     _inherit = "account.chart.template"
 
-    def _load(self, template_code, company, install_demo, force_create=True):
-        # Call the original method first
-        res = super()._load(template_code, company, install_demo, force_create)
-
-        # Verify that it's an Argentine chart of accounts
-        # Check if applicable to "ar_ex", "ar_base"
-        if company.account_fiscal_country_id.code == "AR":
-            self._l10n_ar_account_reports_setup_account_tags([company])
-
-        return res
-
     def _post_load_data(self, template_code, company, template_data):
+        # Nota: _load() llama a _post_load_data(), por eso solo se extiende
+        # este último (extender ambos ejecutaba el seteo de tags dos veces).
         super()._post_load_data(template_code, company, template_data)
         if company.account_fiscal_country_id.code == "AR":
             self._l10n_ar_account_reports_setup_account_tags([company])
@@ -37,8 +28,6 @@ class AccountChartTemplate(models.AbstractModel):
         - Income Statement (Estado de Resultados)
         - Balance Sheet (Estado Patrimonial)
         """
-        # NOTE: Using 'l10n_ar_account_reports' as module prefix assuming we kept the same xmlids.
-        # If we didn't, we should check tags_data.xml. Assuming we copied tags_data.xml as is.
         prefix = "l10n_ar_account_reports"
         
         tags = {
@@ -239,16 +228,8 @@ class AccountChartTemplate(models.AbstractModel):
         tag_ids_list = [tag.id for tag in tag_ids]  # Lista de IDs de todas las etiquetas
 
         for company in ar_companies:
-            # En Odoo 18, las cuentas usan company_ids (many2many) en lugar de company_id
             accounts = self.env["account.account"].search([("company_id", "=", company.id)])
 
-            # Primero limpiar todas las etiquetas específicas de reportes argentinos
-            for account in accounts:
-                # Quitar todas las etiquetas argentinas existentes
-                for tag_id in tag_ids_list:
-                    account.write({"tag_ids": [(3, tag_id)]})
-
-            # Luego asignar las etiquetas correctas
             for account in accounts:
                 tag_id = None
 
@@ -282,6 +263,9 @@ class AccountChartTemplate(models.AbstractModel):
                 ]:
                     tag_id = self._get_tag_for_liability_equity_account(account, tags, company)
 
-                # Assign the tag if one was found
+                # Un solo write por cuenta: quita las etiquetas AR existentes y
+                # agrega la que corresponde (si se encontró alguna).
+                commands = [(3, t) for t in tag_ids_list if t != tag_id]
                 if tag_id:
-                    account.write({"tag_ids": [(4, tag_id)]})
+                    commands.append((4, tag_id))
+                account.write({"tag_ids": commands})
