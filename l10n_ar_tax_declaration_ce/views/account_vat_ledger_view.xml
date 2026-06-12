@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Extensión del form del Libro IVA de ingadhoc: IVA Simple (ZIP) + Cierre de impuestos -->
+    <record id="account_vat_ledger_form_tax_declaration" model="ir.ui.view">
+        <field name="name">account.vat.ledger.form.tax.declaration</field>
+        <field name="model">account.vat.ledger</field>
+        <field name="inherit_id" ref="l10n_ar_reports.account_vat_ledger_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//header" position="inside">
+                <field name="tax_closing_move_id" invisible="1"/>
+                <button name="action_open_tax_closing"
+                        string="Asiento de cierre"
+                        type="object"
+                        invisible="tax_closing_move_id"/>
+                <button name="action_view_tax_closing_move"
+                        string="Ver asiento de cierre"
+                        type="object"
+                        invisible="not tax_closing_move_id"/>
+            </xpath>
+            <xpath expr="//page[@name='txt_files']" position="after">
+                <page string="IVA Simple (ZIP)" name="iva_simple">
+                    <button name="compute_iva_simple_data"
+                            type="object"
+                            string="Generar IVA Simple (ZIP)"
+                            invisible="state != 'draft'"/>
+                    <group>
+                        <group>
+                            <field name="iva_simple_filename" invisible="1"/>
+                            <field name="iva_simple_file" filename="iva_simple_filename"/>
+                        </group>
+                    </group>
+                </page>
+            </xpath>
+        </field>
+    </record>
+</odoo>

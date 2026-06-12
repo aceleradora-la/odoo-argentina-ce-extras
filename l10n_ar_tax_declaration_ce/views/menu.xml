@@ -1,10 +1,26 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+    <!-- Acción propia sobre el Libro IVA de ingadhoc (ventas y compras juntos) -->
+    <record id="action_l10n_ar_tax_declaration_ledger" model="ir.actions.act_window">
+        <field name="name">Declaración Fiscal (AR)</field>
+        <field name="res_model">account.vat.ledger</field>
+        <field name="view_mode">tree,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Cree un Libro de IVA para el período
+            </p>
+            <p>
+                Desde aquí puede generar los TXT del Libro IVA Digital, el export
+                IVA Simple (ZIP) y el asiento de Cierre de Impuestos del período.
+            </p>
+        </field>
+    </record>
+
     <menuitem
         id="menu_l10n_ar_tax_declaration"
         name="Declaración Fiscal (AR)"
         parent="account.menu_finance_reports"
-        action="action_l10n_ar_vat_book_line"
+        action="action_l10n_ar_tax_declaration_ledger"
         sequence="23"
     />
 </odoo>

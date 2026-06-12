@@ -50,6 +50,12 @@ class L10nArTaxClosingWizard(models.TransientModel):
         help="Contrapartida si el cierre arroja saldo a favor (ej. IVA saldo técnico / libre disponibilidad)",
         check_company=True,
     )
+    vat_ledger_id = fields.Many2one(
+        "account.vat.ledger",
+        string="Libro IVA",
+        readonly=True,
+        help="Libro IVA desde el que se lanzó el cierre (trazabilidad del asiento).",
+    )
 
     @api.model
     def _default_journal(self):
@@ -220,6 +226,10 @@ class L10nArTaxClosingWizard(models.TransientModel):
                 "line_ids": [(0, 0, vals) for vals in move_lines],
             }
         )
+
+        # Trazabilidad: vinculamos el asiento al Libro IVA de origen.
+        if self.vat_ledger_id:
+            self.vat_ledger_id.tax_closing_move_id = move
 
         return {
             "type": "ir.actions.act_window",

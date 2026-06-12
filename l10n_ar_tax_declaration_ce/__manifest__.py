@@ -10,26 +10,25 @@
 ##############################################################################
 {
     "name": "Declaración Fiscal Argentina (Community)",
-    "version": "17.0.2.0.0",
+    "version": "17.0.3.0.0",
     "category": "Accounting",
     "author": "Aceleradora-Latam",
     "website": "https://github.com/aceleradora-la/odoo-argentina-ce-extras",
     "license": "AGPL-3",
-    "summary": "Libro de IVA argentino, exports PDF/XLSX/ZIP y Cierre de Impuestos para Community",
+    "summary": "Extiende el Libro IVA (ingadhoc) con export IVA Simple (ZIP) y Cierre de Impuestos",
     "depends": [
         "account",
         "l10n_ar",
-        # Reusamos el export de Libro IVA Digital (ZIP) existente.
+        # Libro IVA (account.vat.ledger) de ingadhoc, base de toda la pantalla.
+        "l10n_ar_reports",
+        # Reusamos el export IVA Simple (ZIP/CSV) existente.
         "l10n_ar_account_reports",
     ],
     "data": [
         "security/ir.model.access.csv",
-        "views/vat_book_line_views.xml",
+        "views/account_vat_ledger_view.xml",
         "views/menu.xml",
-        "views/tax_declaration_wizard_view.xml",
-        "views/tax_report_views.xml",
         "wizards/tax_closing_wizard_view.xml",
-        "reports/vat_book_report.xml",
     ],
     "installable": True,
     "application": False,

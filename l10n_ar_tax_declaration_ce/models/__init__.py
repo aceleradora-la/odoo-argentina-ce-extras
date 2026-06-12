@@ -1,1 +1,1 @@
-from . import l10n_ar_vat_book_line
+from . import account_vat_ledger
