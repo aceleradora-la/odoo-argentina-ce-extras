@@ -28,6 +28,8 @@
     "depends": [
         "account",
         "l10n_ar",
+        # Provee el modelo afip.activity usado en la actividad por cuenta/compañía.
+        "l10n_ar_ux",
         # Removed Enterprise deps: account_reports, l10n_ar_reports
     ],
     "data": [
