@@ -217,6 +217,44 @@ class L10nArVatBookWizard(models.TransientModel):
             results.append(row_data)
         return results
 
+    def _vat_simple_activity_sql(self):
+        """Devuelve (activity_select, activity_joins) para el query de ventas.
+
+        La actividad AFIP de la cuenta y de la compañía proviene de campos de la
+        localización que en Community pueden no existir. Probamos campos conocidos
+        y, si ninguno está, devolvemos la actividad por defecto '0' (sin joins)
+        para que el export no falle.
+        """
+        account_field = next(
+            (f for f in ("l10n_ar_afip_activity_id",) if f in self.env["account.account"]._fields),
+            None,
+        )
+        company_field = next(
+            (f for f in ("l10n_ar_afip_activity_id",) if f in self.env["res.company"]._fields),
+            None,
+        )
+
+        if not account_field and not company_field:
+            return SQL("'0'"), SQL("")
+
+        coalesce_parts = []
+        joins = []
+        if account_field:
+            joins.append(
+                SQL("LEFT JOIN afip_activity amlact ON acc.%s = amlact.id", SQL.identifier(account_field))
+            )
+            coalesce_parts.append(SQL("amlact.code"))
+        if company_field:
+            joins.append(
+                SQL("LEFT JOIN afip_activity cmpact ON cmp.%s = cmpact.id", SQL.identifier(company_field))
+            )
+            coalesce_parts.append(SQL("cmpact.code"))
+        coalesce_parts.append(SQL("'0'"))
+
+        activity_select = SQL("COALESCE(%s)", SQL(", ").join(coalesce_parts))
+        activity_joins = SQL(" ").join(joins)
+        return activity_select, activity_joins
+
     def _vat_simple_build_sale_query(self, file_type, move_ids):
         columns_map = {
             "Actividad": "activity",
@@ -259,6 +297,12 @@ class L10nArVatBookWizard(models.TransientModel):
             cte_order_query = SQL("ORDER BY aml.id")
         columns_map["Monto Neto Exento o No Gravado"] = "exempt_balance"
 
+        # El campo de actividad AFIP en cuenta/compañía es de módulos de la
+        # localización (Enterprise: l10n_ar_afip_activity_id). En instalaciones
+        # Community puede no existir o llamarse distinto: detectamos su presencia
+        # y, si falta, usamos la actividad por defecto '0' sin romper el query.
+        activity_select, activity_joins = self._vat_simple_activity_sql()
+
         query = SQL(
             """
                 WITH move_lines_with_operation_type AS (
@@ -266,15 +310,14 @@ class L10nArVatBookWizard(models.TransientModel):
                         aml.balance,
                         aml.id,
                         aml.move_id,
-                        COALESCE(amlact.code, cmpact.code, '0') AS activity,
+                        %(activity_select)s AS activity,
                         %(operation_query)s AS operation_type,
                         rprt.code as partner_responsibility_code,
                         btg.l10n_ar_vat_afip_code
                     FROM account_move_line aml
                     LEFT JOIN account_account acc ON aml.account_id = acc.id
-                    LEFT JOIN afip_activity amlact ON acc.l10n_ar_afip_activity_id = amlact.id
                     LEFT JOIN res_company cmp ON aml.company_id = cmp.id
-                    LEFT JOIN afip_activity cmpact ON cmp.l10n_ar_afip_activity_id = cmpact.id
+                    %(activity_joins)s
                     LEFT JOIN account_account_account_tag aaat ON acc.id = aaat.account_account_id
                     LEFT JOIN res_partner rp ON aml.partner_id = rp.id
                     LEFT JOIN l10n_ar_afip_responsibility_type rprt ON rp.l10n_ar_afip_responsibility_type_id = rprt.id
@@ -307,6 +350,8 @@ class L10nArVatBookWizard(models.TransientModel):
                 GROUP BY activity, operation_type, responsibility_type_code, rate_code
                 ORDER BY activity, operation_type, responsibility_type_code, rate_code;
             """,
+            activity_select=activity_select,
+            activity_joins=activity_joins,
             operation_query=operation_type_query,
             cte_order_query=cte_order_query,
             exempt_op_type=exempt_operation_type,
