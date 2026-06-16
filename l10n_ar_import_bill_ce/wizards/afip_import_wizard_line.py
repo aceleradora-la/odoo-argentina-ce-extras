@@ -99,14 +99,20 @@ class AfipImportWizardLine(models.TransientModel):
                 [("name", "ilike", self.partner_identification_type)], limit=1
             )
 
-            partner = self.env["res.partner"].create(
-                {
-                    "name": self.partner_name,
-                    "vat": self.partner_vat,
-                    "l10n_latam_identification_type_id": identification_type.id,
-                    "company_type": "company",
-                }
-            )
+            vals = {
+                "name": self.partner_name,
+                "vat": self.partner_vat,
+                "l10n_latam_identification_type_id": identification_type.id,
+                "company_type": "company",
+            }
+            # Inferimos la responsabilidad AFIP a partir de la letra del comprobante
+            # (lo que Enterprise resuelve vía padrón). Si luego se actualiza desde
+            # AFIP, ese dato más fiable sobrescribe esta inferencia.
+            responsibility = self._get_afip_responsibility_type()
+            if responsibility:
+                vals["l10n_ar_afip_responsibility_type_id"] = responsibility.id
+
+            partner = self.env["res.partner"].create(vals)
             # Si el tipo de identificación es CUIT (código AFIP 80), intentamos actualizar los datos desde AFIP
             # Este método puede no estar disponible en Community, verificar si existe
             # l10n_ar_afip_code es Char: comparar como string.
@@ -119,6 +125,24 @@ class AfipImportWizardLine(models.TransientModel):
                         pass
 
         return partner
+
+    def _get_afip_responsibility_type(self):
+        """
+        Infiere la responsabilidad AFIP del proveedor según la letra del
+        comprobante que emitió:
+          - A / B / M  -> IVA Responsable Inscripto (código 1)
+          - C          -> Responsable Monotributo (código 6)
+        Devuelve el registro l10n_ar.afip.responsibility.type o False si no se
+        puede determinar.
+        """
+        self.ensure_one()
+        letter = self._get_document_type().l10n_ar_letter
+        code = {"A": "1", "B": "1", "M": "1", "C": "6"}.get(letter)
+        if not code:
+            return False
+        return self.env["l10n_ar.afip.responsibility.type"].search(
+            [("code", "=", code)], limit=1
+        )
 
     def _get_document_type(self):
         """
