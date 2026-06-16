@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <!-- Renombra el toggle title_case a español para que quede claro,
+         igual que el comportamiento de Enterprise (l10n_ar_edi_ux). -->
+    <record id="view_base_partner_update_from_padron_form_titlecase" model="ir.ui.view">
+        <field name="name">res.partner.update.from.padron.wizard.form.titlecase</field>
+        <field name="model">res.partner.update.from.padron.wizard</field>
+        <field name="inherit_id" ref="l10n_ar_afipws.view_base_partner_update_from_padron_form"/>
+        <field name="arch" type="xml">
+            <field name="title_case" position="attributes">
+                <attribute name="string">Convertir nombre a Mayúscula Inicial (Nombre Propio)</attribute>
+                <attribute name="help">Tildado: convierte Nombre, Ciudad y Calle a Mayúscula Inicial (Nombre Propio). Destildado: respeta el texto tal como viene del padrón (normalmente en MAYÚSCULAS).</attribute>
+            </field>
+        </field>
+    </record>
+</odoo>
