@@ -34,6 +34,7 @@
         "security/ir.model.access.csv",
         "data/tags_data.xml",
         "data/account.account.tag.csv",
+        "views/account_activity_views.xml",
         "views/l10n_ar_vat_book_wizard_view.xml",
     ],
     "demo": [],

@@ -220,39 +220,46 @@ class L10nArVatBookWizard(models.TransientModel):
     def _vat_simple_activity_sql(self):
         """Devuelve (activity_select, activity_joins) para el query de ventas.
 
-        La actividad AFIP de la cuenta y de la compañía proviene de campos de la
-        localización que en Community pueden no existir. Probamos campos conocidos
-        y, si ninguno está, devolvemos la actividad por defecto '0' (sin joins)
-        para que el export no falle.
+        La actividad AFIP puede provenir de:
+          * un Char propio `l10n_ar_afip_activity_code` (este módulo), o
+          * un Many2one `l10n_ar_afip_activity_id` a `afip.activity` (Enterprise).
+        Se detecta cuál está presente en cuenta y compañía; si no hay ninguno,
+        se usa la actividad por defecto '0' para que el export no falle.
         """
-        account_field = next(
-            (f for f in ("l10n_ar_afip_activity_id",) if f in self.env["account.account"]._fields),
-            None,
-        )
-        company_field = next(
-            (f for f in ("l10n_ar_afip_activity_id",) if f in self.env["res.company"]._fields),
-            None,
-        )
 
-        if not account_field and not company_field:
-            return SQL("'0'"), SQL("")
+        def field_sql(model, table_alias, join_alias):
+            """Devuelve (coalesce_expr, join_sql_or_None) para un modelo dado."""
+            fields = self.env[model]._fields
+            if "l10n_ar_afip_activity_code" in fields:
+                return SQL("%s.l10n_ar_afip_activity_code" % table_alias), None
+            if "l10n_ar_afip_activity_id" in fields:
+                return (
+                    SQL("%s.code" % join_alias),
+                    SQL(
+                        "LEFT JOIN afip_activity %s ON %s.l10n_ar_afip_activity_id = %s.id"
+                        % (join_alias, table_alias, join_alias)
+                    ),
+                )
+            return None, None
 
         coalesce_parts = []
         joins = []
-        if account_field:
-            joins.append(
-                SQL("LEFT JOIN afip_activity amlact ON acc.%s = amlact.id", SQL.identifier(account_field))
-            )
-            coalesce_parts.append(SQL("amlact.code"))
-        if company_field:
-            joins.append(
-                SQL("LEFT JOIN afip_activity cmpact ON cmp.%s = cmpact.id", SQL.identifier(company_field))
-            )
-            coalesce_parts.append(SQL("cmpact.code"))
-        coalesce_parts.append(SQL("'0'"))
+        for model, table_alias, join_alias in (
+            ("account.account", "acc", "amlact"),
+            ("res.company", "cmp", "cmpact"),
+        ):
+            expr, join = field_sql(model, table_alias, join_alias)
+            if expr is not None:
+                coalesce_parts.append(expr)
+            if join is not None:
+                joins.append(join)
 
+        if not coalesce_parts:
+            return SQL("'0'"), SQL("")
+
+        coalesce_parts.append(SQL("'0'"))
         activity_select = SQL("COALESCE(%s)", SQL(", ").join(coalesce_parts))
-        activity_joins = SQL(" ").join(joins)
+        activity_joins = SQL(" ").join(joins) if joins else SQL("")
         return activity_select, activity_joins
 
     def _vat_simple_build_sale_query(self, file_type, move_ids):
