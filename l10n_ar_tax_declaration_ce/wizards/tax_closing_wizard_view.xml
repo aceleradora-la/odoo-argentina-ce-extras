@@ -9,13 +9,17 @@
                     <div class="alert alert-info" role="alert">
                         Se generará un asiento <strong>en borrador</strong> que revierte los
                         saldos de las cuentas de IVA del período contra la cuenta de saldo
-                        a pagar / a favor. Revise el asiento antes de publicarlo.
+                        a pagar / a favor. Si <strong>Arrastrar saldo a favor</strong> está
+                        activo, también se netea el saldo a favor acumulado de períodos
+                        anteriores (cierre los períodos en orden). Revise el asiento antes
+                        de publicarlo.
                     </div>
                     <group>
                         <group>
                             <field name="date_from"/>
                             <field name="date_to"/>
                             <field name="scope" widget="radio"/>
+                            <field name="carryover_favor"/>
                         </group>
                         <group>
                             <!-- Siempre presente (invisible): los dominios check_company

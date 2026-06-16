@@ -64,6 +64,14 @@ class L10nArTaxClosingWizard(models.TransientModel):
         readonly=True,
         help="Libro IVA desde el que se lanzó el cierre (trazabilidad del asiento).",
     )
+    carryover_favor = fields.Boolean(
+        string="Arrastrar saldo a favor del período anterior",
+        default=True,
+        help="Si está activo, el cierre toma el saldo a favor acumulado en la "
+        "'Cuenta saldo a favor' de períodos anteriores (movimientos previos a la "
+        "fecha desde), lo reversa y lo netea contra el resultado del período. "
+        "Requiere cerrar los períodos en orden secuencial.",
+    )
 
     @api.model
     def _default_journal(self):
@@ -142,6 +150,25 @@ class L10nArTaxClosingWizard(models.TransientModel):
             lines |= perception_lines
         return lines
 
+    def _get_carryover_balance(self):
+        """Saldo a favor acumulado en la 'Cuenta saldo a favor' de períodos
+        anteriores (movimientos publicados con fecha anterior a date_from).
+
+        Devuelve el balance redondeado (positivo = saldo a favor a arrastrar).
+        Cero si el arrastre está desactivado o no hay cuenta de saldo a favor."""
+        self.ensure_one()
+        if not self.carryover_favor or not self.receivable_account_id:
+            return 0.0
+        prior_lines = self.env["account.move.line"].search(
+            [
+                ("company_id", "=", self.company_id.id),
+                ("parent_state", "=", "posted"),
+                ("account_id", "=", self.receivable_account_id.id),
+                ("date", "<", self.date_from),
+            ]
+        )
+        return self.company_id.currency_id.round(sum(prior_lines.mapped("balance")))
+
     def action_generate(self):
         self.ensure_one()
         if self.date_from > self.date_to:
@@ -198,6 +225,22 @@ class L10nArTaxClosingWizard(models.TransientModel):
                     # Reversión: el asiento de cierre deja en cero la cuenta.
                     "debit": -balance if balance < 0.0 else 0.0,
                     "credit": balance if balance > 0.0 else 0.0,
+                }
+            )
+
+        # Arrastre del saldo a favor del período anterior: reversa el saldo
+        # acumulado en la cuenta de saldo a favor y lo netea contra el período,
+        # replicando el "saldo a favor del período anterior" de AFIP.
+        carryover = self._get_carryover_balance()
+        if not company_currency.is_zero(carryover):
+            net_balance += carryover
+            move_lines.append(
+                {
+                    "name": _("Saldo a favor per. anterior"),
+                    "account_id": self.receivable_account_id.id,
+                    # Reversión: deja en cero el saldo a favor arrastrado.
+                    "debit": -carryover if carryover < 0.0 else 0.0,
+                    "credit": carryover if carryover > 0.0 else 0.0,
                 }
             )
 
