@@ -199,17 +199,44 @@ class AfipImportWizardLine(models.TransientModel):
     # Definimos la funcion que crea las lineas de factura
     # con el precio unitario y los impuestos correspondientes
 
+    def _get_analytic_distribution(self, partner):
+        """
+        Propone la distribución analítica copiándola del último apunte de
+        compra posteado de este proveedor que tenga una distribución cargada.
+        Replica para la analítica lo que Odoo ya hace con la cuenta contable
+        (autocompletar a partir de los últimos registros del proveedor), algo
+        que en Community no se hace solo.
+        Devuelve el dict de analytic_distribution o False.
+        """
+        self.ensure_one()
+        AccountMoveLine = self.env["account.move.line"]
+        if "analytic_distribution" not in AccountMoveLine._fields:
+            return False
+        last_line = AccountMoveLine.search(
+            [
+                ("partner_id", "=", partner.id),
+                ("company_id", "=", self.wizard_id.company_id.id),
+                ("parent_state", "=", "posted"),
+                ("move_id.move_type", "in", ["in_invoice", "in_refund"]),
+                ("display_type", "=", "product"),
+                ("analytic_distribution", "!=", False),
+            ],
+            order="date desc, id desc",
+            limit=1,
+        )
+        return last_line.analytic_distribution or False
+
     def _create_line(self, price_unit, tax_ids):
         partner = self._get_partner_by_vat()
-        return (
-            0,
-            0,
-            {
-                "name": "Creado por importación de facturas",
-                "quantity": 1.0,
-                "price_unit": price_unit,
-                "tax_ids": [(6, 0, tax_ids)],
-                "partner_id": partner.id,
-            },
-        )
+        line_vals = {
+            "name": "Creado por importación de facturas",
+            "quantity": 1.0,
+            "price_unit": price_unit,
+            "tax_ids": [(6, 0, tax_ids)],
+            "partner_id": partner.id,
+        }
+        distribution = self._get_analytic_distribution(partner)
+        if distribution:
+            line_vals["analytic_distribution"] = distribution
+        return (0, 0, line_vals)
 
