@@ -57,7 +57,14 @@ class ResPartner(models.Model):
         la Ñ). Las decodificamos y normalizamos espacios."""
         if not value or not isinstance(value, str):
             return value
-        return html.unescape(value).strip()
+        # ARCA a veces devuelve entidades doble-escapadas (ej. "&amp;#209;");
+        # desescapamos hasta que el texto se estabilice.
+        for _i in range(3):
+            new = html.unescape(value)
+            if new == value:
+                break
+            value = new
+        return value.strip()
 
     @api.model
     def _padron_as_list(self, value):
