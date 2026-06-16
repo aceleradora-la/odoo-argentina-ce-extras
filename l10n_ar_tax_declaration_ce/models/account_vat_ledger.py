@@ -16,22 +16,49 @@ class AccountVatLedger(models.Model):
     # Títulos en inglés que ingadhoc sella en el campo `name` al crear el Libro.
     _TITLE_TRANSLATIONS = {
         "Purchases VAT Ledger": "Libro IVA Compras",
+        "Purchase VAT Ledger": "Libro IVA Compras",
         "Sales VAT Ledger": "Libro IVA Ventas",
+        "Sale VAT Ledger": "Libro IVA Ventas",
     }
+
+    def _l10n_ar_translate_title(self, name):
+        """Pasa a español el título en inglés que sella el módulo base."""
+        if not name:
+            return name
+        for en, es in self._TITLE_TRANSLATIONS.items():
+            name = name.replace(en, es)
+        return name
+
+    @api.model
+    def default_get(self, fields_list):
+        # También traducimos el nombre propuesto en el formulario (antes de guardar).
+        res = super().default_get(fields_list)
+        if res.get("name"):
+            res["name"] = self._l10n_ar_translate_title(res["name"])
+        return res
 
     @api.model_create_multi
     def create(self, vals_list):
         records = super().create(vals_list)
-        # El título se arma en código (no es traducible vía .po): lo pasamos a
-        # español reemplazando el prefijo en inglés que deja el módulo base.
         for rec in records:
-            if not rec.name:
-                continue
-            new_name = rec.name
-            for en, es in self._TITLE_TRANSLATIONS.items():
-                new_name = new_name.replace(en, es)
+            # Título en español (el campo se arma en código, no es traducible vía .po).
+            new_name = rec._l10n_ar_translate_title(rec.name)
             if new_name != rec.name:
                 rec.name = new_name
+            # Vinculación con un asiento de cierre del MISMO período ya generado
+            # (ej. el cierre se hizo desde Compras y ahora se crea el Libro de Ventas).
+            if not rec.tax_closing_move_id and rec.date_from and rec.date_to:
+                move = self.env["account.move"].search(
+                    [
+                        ("company_id", "=", rec.company_id.id),
+                        ("l10n_ar_tax_closing_date_from", "=", rec.date_from),
+                        ("l10n_ar_tax_closing_date_to", "=", rec.date_to),
+                        ("state", "!=", "cancel"),
+                    ],
+                    limit=1,
+                )
+                if move:
+                    rec.tax_closing_move_id = move
         return records
 
     iva_simple_file = fields.Binary(
