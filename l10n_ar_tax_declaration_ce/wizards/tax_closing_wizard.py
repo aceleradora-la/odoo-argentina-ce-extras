@@ -91,24 +91,33 @@ class L10nArTaxClosingWizard(models.TransientModel):
         company = self.env["res.company"].browse(res.get("company_id") or self.env.company.id)
         # Defaults de contrapartidas desde la configuración de grupos de impuestos
         # (campos estándar de CE: tax_payable_account_id / tax_receivable_account_id).
+        # Buscamos los grupos en el contexto de la compañía (no filtramos por
+        # company_id del grupo, que en setups multicompañía vive en otra empresa)
+        # y elegimos la primera cuenta utilizable por la compañía del cierre.
         vat_groups = (
             self.env["account.tax.group"]
             .with_company(company)
-            .search(
-                [
-                    ("l10n_ar_vat_afip_code", "!=", False),
-                    ("company_id", "=", company.id),
-                ]
-            )
+            .search([("l10n_ar_vat_afip_code", "!=", False)])
         )
+
+        def _usable(accounts):
+            for acc in accounts:
+                # account.account usa company_ids (m2m) en 18 y company_id en 17.
+                if "company_ids" in acc._fields:
+                    if company.id in acc.company_ids.ids:
+                        return acc
+                elif acc.company_id.id == company.id:
+                    return acc
+            return self.env["account.account"]
+
         if "payable_account_id" in fields_list and not res.get("payable_account_id"):
-            payable = vat_groups.mapped("tax_payable_account_id")[:1]
-            if payable:
-                res["payable_account_id"] = payable.id
+            acc = _usable(vat_groups.mapped("tax_payable_account_id"))
+            if acc:
+                res["payable_account_id"] = acc.id
         if "receivable_account_id" in fields_list and not res.get("receivable_account_id"):
-            receivable = vat_groups.mapped("tax_receivable_account_id")[:1]
-            if receivable:
-                res["receivable_account_id"] = receivable.id
+            acc = _usable(vat_groups.mapped("tax_receivable_account_id"))
+            if acc:
+                res["receivable_account_id"] = acc.id
         return res
 
     # -------------------------------------------------------------------------
