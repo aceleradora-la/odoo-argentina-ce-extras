@@ -82,8 +82,10 @@ class ResPartner(models.Model):
         vat = self.ensure_vat()
 
         company = self.env.user.company_id
-        # Reutilizamos la conexión de CE: ya resuelve certificado, WSAA, token y sign
-        connection = company.get_connection("ws_sr_padron_a5")
+        # getPersona_v2 corre sobre el servicio de Constancia de Inscripción:
+        # el token WSAA debe pedirse para ese servicio (no para ws_sr_padron_a5),
+        # de lo contrario AFIP responde "Computador no autorizado".
+        connection = company.get_connection("ws_sr_constancia_inscripcion")
         cuit_repr = company.partner_id.ensure_vat()
 
         error_msg = _(
