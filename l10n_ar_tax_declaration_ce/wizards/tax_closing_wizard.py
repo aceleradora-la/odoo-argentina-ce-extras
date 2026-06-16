@@ -74,15 +74,29 @@ class L10nArTaxClosingWizard(models.TransientModel):
     )
 
     @api.model
+    def _company_chain_ids(self, company):
+        """IDs de la compañía y sus empresas padre (en setups de sucursal, la
+        hija usa cuentas/diarios de la principal)."""
+        ids = []
+        current = company
+        while current:
+            ids.append(current.id)
+            current = current.parent_id
+        return ids
+
+    @api.model
     def _default_journal(self):
-        journal = self.env["account.journal"].search(
-            [("type", "=", "general"), ("company_id", "=", self.env.company.id), ("code", "=", "MISC")],
-            limit=1,
-        )
+        company = self.env.company
+        Journal = self.env["account.journal"]
+        base = [("type", "=", "general"), ("company_id", "=", company.id)]
+        # Preferimos el diario de liquidación de IVA (l10n_ar_account_tax_settlement).
+        if "settlement_tax" in Journal._fields:
+            journal = Journal.search(base + [("settlement_tax", "=", "vat")], limit=1)
+            if journal:
+                return journal
+        journal = Journal.search(base + [("code", "=", "MISC")], limit=1)
         if not journal:
-            journal = self.env["account.journal"].search(
-                [("type", "=", "general"), ("company_id", "=", self.env.company.id)], limit=1
-            )
+            journal = Journal.search(base, limit=1)
         return journal
 
     @api.model
@@ -100,13 +114,17 @@ class L10nArTaxClosingWizard(models.TransientModel):
             .search([("l10n_ar_vat_afip_code", "!=", False)])
         )
 
+        # Cuentas válidas: las de la compañía del cierre o de sus empresas padre
+        # (sucursal que usa las cuentas de la principal).
+        allowed_ids = set(self._company_chain_ids(company))
+
         def _usable(accounts):
             for acc in accounts:
                 # account.account usa company_ids (m2m) en 18 y company_id en 17.
                 if "company_ids" in acc._fields:
-                    if company.id in acc.company_ids.ids:
+                    if allowed_ids & set(acc.company_ids.ids):
                         return acc
-                elif acc.company_id.id == company.id:
+                elif acc.company_id.id in allowed_ids:
                     return acc
             return self.env["account.account"]
 
