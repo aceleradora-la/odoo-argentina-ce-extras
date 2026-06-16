@@ -124,7 +124,10 @@ class AfipImportWizard(models.TransientModel):
                 "company_id": self.company_id.id,
                 "line_ids": [],
             }
-            if line.cae:
+            # El campo del CAE solo existe si está instalada la facturación
+            # electrónica (l10n_ar_edi). En Community sin EDI no está, así que
+            # solo lo seteamos cuando el campo realmente existe en account.move.
+            if line.cae and "l10n_ar_afip_auth_code" in self.env["account.move"]._fields:
                 move_vals["l10n_ar_afip_auth_code"] = line.cae
 
             # Agregamos la linea con IVA y otros tributos (si existen).
