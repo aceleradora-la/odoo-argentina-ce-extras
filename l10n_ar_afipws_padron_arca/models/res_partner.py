@@ -1,3 +1,4 @@
+import html
 import logging
 
 from odoo import _, api, fields, models
@@ -62,6 +63,14 @@ class ResPartner(models.Model):
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
+    @api.model
+    def _padron_clean_str(self, value):
+        """ARCA devuelve algunos textos con entidades HTML (ej. ``&#209;`` por
+        la Ñ). Las decodificamos y normalizamos espacios."""
+        if not value or not isinstance(value, str):
+            return value
+        return html.unescape(value).strip()
+
     @api.model
     def _padron_as_list(self, value):
         """ARCA devuelve un dict cuando hay un solo elemento y una lista cuando
@@ -137,11 +146,14 @@ class ResPartner(models.Model):
 
         tax_recs = self._padron_get_or_create(
             "l10n_ar.padron.tax",
-            [(str(i.get("idImpuesto")), i.get("descripcionImpuesto")) for i in impuestos_raw],
+            [(str(i.get("idImpuesto")), self._padron_clean_str(i.get("descripcionImpuesto"))) for i in impuestos_raw],
         )
         act_recs = self._padron_get_or_create(
             "l10n_ar.padron.activity",
-            [(str(a.get("idActividad")), a.get("descripcionActividad")) for a in actividades_raw],
+            [
+                (str(a.get("idActividad")), self._padron_clean_str(a.get("descripcionActividad")))
+                for a in actividades_raw
+            ],
         )
 
         # --- IVA por código de impuesto (no por el flag imp_iva, que viene roto) ---
@@ -164,9 +176,11 @@ class ResPartner(models.Model):
             provincia = ""
 
         vals = {
-            "name": denominacion,
-            "street": domicilio.get("direccion") or domicilio.get("localidad") or provincia,
-            "city": domicilio.get("localidad") or "",
+            "name": self._padron_clean_str(denominacion),
+            "street": self._padron_clean_str(
+                domicilio.get("direccion") or domicilio.get("localidad") or provincia
+            ),
+            "city": self._padron_clean_str(domicilio.get("localidad") or ""),
             "zip": domicilio.get("codPostal") or "",
             "actividades_padron": act_recs.ids,
             "impuestos_padron": tax_recs.ids,
