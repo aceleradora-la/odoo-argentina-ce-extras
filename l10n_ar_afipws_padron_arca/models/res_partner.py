@@ -45,20 +45,8 @@ MAP_PROVINCIAS = {
 class ResPartner(models.Model):
     _inherit = "res.partner"
 
-    actividades_padron = fields.Many2many(
-        "l10n_ar.padron.activity",
-        "res_partner_padron_activity_rel",
-        "partner_id",
-        "activity_id",
-        string="Actividades (Padrón)",
-    )
-    impuestos_padron = fields.Many2many(
-        "l10n_ar.padron.tax",
-        "res_partner_padron_tax_rel",
-        "partner_id",
-        "tax_id",
-        string="Impuestos (Padrón)",
-    )
+    # Los campos actividades_padron / impuestos_padron y los modelos
+    # afip.activity / afip.tax los provee l10n_ar_ux; acá solo los poblamos.
 
     # ------------------------------------------------------------------
     # Helpers
@@ -145,11 +133,11 @@ class ResPartner(models.Model):
         actividades_raw = [a for a in actividades_raw if a and a.get("idActividad") is not None]
 
         tax_recs = self._padron_get_or_create(
-            "l10n_ar.padron.tax",
+            "afip.tax",
             [(str(i.get("idImpuesto")), self._padron_clean_str(i.get("descripcionImpuesto"))) for i in impuestos_raw],
         )
         act_recs = self._padron_get_or_create(
-            "l10n_ar.padron.activity",
+            "afip.activity",
             [
                 (str(a.get("idActividad")), self._padron_clean_str(a.get("descripcionActividad")))
                 for a in actividades_raw
@@ -169,6 +157,16 @@ class ResPartner(models.Model):
         cat_mt = data_mt.get("categoriaMonotributo") or {}
         monotributo = "S" if cat_mt else "N"
 
+        # --- Impuesto a las ganancias ---
+        if {"10", "11"} & set(imp_codes):
+            imp_ganancias = "AC"
+        elif "12" in imp_codes:
+            imp_ganancias = "EX"
+        elif monotributo == "S":
+            imp_ganancias = "NC"
+        else:
+            imp_ganancias = False
+
         id_provincia = domicilio.get("idProvincia")
         try:
             provincia = MAP_PROVINCIAS.get(int(id_provincia), "") if id_provincia not in (None, "") else ""
@@ -184,8 +182,15 @@ class ResPartner(models.Model):
             "zip": domicilio.get("codPostal") or "",
             "actividades_padron": act_recs.ids,
             "impuestos_padron": tax_recs.ids,
+            "estado_padron": estado_clave or "",
+            "monotributo_padron": monotributo,
+            "imp_iva_padron": imp_iva,
+            "actividad_monotributo_padron": self._padron_clean_str(cat_mt.get("descripcionCategoria") or ""),
+            "empleador_padron": "301" in imp_codes,
             "last_update_census": fields.Date.today(),
         }
+        if imp_ganancias:
+            vals["imp_ganancias_padron"] = imp_ganancias
 
         # --- Provincia ---
         if provincia:

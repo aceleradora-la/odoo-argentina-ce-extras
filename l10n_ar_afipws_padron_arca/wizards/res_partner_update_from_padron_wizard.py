@@ -3,7 +3,21 @@ from ast import literal_eval
 from odoo import api, models
 
 # Campos adicionales que el wizard base no contempla en su dominio
-EXTRA_FIELDS = ["state_id", "actividades_padron", "impuestos_padron"]
+EXTRA_FIELDS = [
+    "state_id",
+    "actividades_padron",
+    "impuestos_padron",
+    "estado_padron",
+    "monotributo_padron",
+    "imp_iva_padron",
+    "imp_ganancias_padron",
+    "actividad_monotributo_padron",
+    "empleador_padron",
+]
+
+# Campos booleanos: el wizard guarda new_value como Char ("True"/"False"),
+# por lo que hay que castearlos para que no se graben siempre como verdadero.
+BOOL_FIELDS = ("empleador_padron",)
 
 
 class ResPartnerUpdateFromPadronWizard(models.TransientModel):
@@ -37,7 +51,7 @@ class ResPartnerUpdateFromPadronWizard(models.TransientModel):
         for field in self.field_ids:
             if field.field in ("impuestos_padron", "actividades_padron"):
                 vals[field.field] = [(6, False, literal_eval(field.new_value))]
-            elif field.field in m2o_fields:
+            elif field.field in m2o_fields or field.field in BOOL_FIELDS:
                 vals[field.field] = literal_eval(field.new_value)
             else:
                 vals[field.field] = field.new_value
