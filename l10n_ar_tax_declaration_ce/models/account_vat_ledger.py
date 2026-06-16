@@ -13,6 +13,27 @@ class AccountVatLedger(models.Model):
 
     _inherit = "account.vat.ledger"
 
+    # Títulos en inglés que ingadhoc sella en el campo `name` al crear el Libro.
+    _TITLE_TRANSLATIONS = {
+        "Purchases VAT Ledger": "Libro IVA Compras",
+        "Sales VAT Ledger": "Libro IVA Ventas",
+    }
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        records = super().create(vals_list)
+        # El título se arma en código (no es traducible vía .po): lo pasamos a
+        # español reemplazando el prefijo en inglés que deja el módulo base.
+        for rec in records:
+            if not rec.name:
+                continue
+            new_name = rec.name
+            for en, es in self._TITLE_TRANSLATIONS.items():
+                new_name = new_name.replace(en, es)
+            if new_name != rec.name:
+                rec.name = new_name
+        return records
+
     iva_simple_file = fields.Binary(
         string="Archivo IVA Simple (ZIP)",
         readonly=True,
