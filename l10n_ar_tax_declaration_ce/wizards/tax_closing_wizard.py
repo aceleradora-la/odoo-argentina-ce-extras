@@ -174,17 +174,27 @@ class L10nArTaxClosingWizard(models.TransientModel):
         if self.date_from > self.date_to:
             raise ValidationError(_("La fecha desde no puede ser mayor a la fecha hasta."))
 
-        # Sin _(): el ref se usa como clave de detección de duplicados y debe
-        # ser idéntico sin importar el idioma del usuario que genera el cierre.
         ref = "Cierre de impuestos: %s" % self._get_period_label()
+
+        # Detección de duplicados por período real (fechas), independiente del
+        # diario (ventas/compras) y del texto del ref. Fallback al ref para
+        # asientos de cierre antiguos creados sin la marca de período.
+        company_domain = [
+            ("company_id", "=", self.company_id.id),
+            ("state", "!=", "cancel"),
+        ]
         existing = self.env["account.move"].search(
-            [
-                ("ref", "=", ref),
-                ("company_id", "=", self.company_id.id),
-                ("state", "!=", "cancel"),
+            company_domain
+            + [
+                ("l10n_ar_tax_closing_date_from", "=", self.date_from),
+                ("l10n_ar_tax_closing_date_to", "=", self.date_to),
             ],
             limit=1,
         )
+        if not existing:
+            existing = self.env["account.move"].search(
+                company_domain + [("ref", "=", ref)], limit=1
+            )
         if existing:
             raise ValidationError(
                 _(
@@ -286,12 +296,25 @@ class L10nArTaxClosingWizard(models.TransientModel):
                 "journal_id": self.journal_id.id,
                 "company_id": self.company_id.id,
                 "line_ids": [(0, 0, vals) for vals in move_lines],
+                # Marca de período para detección de duplicados por fechas.
+                "l10n_ar_tax_closing_date_from": self.date_from,
+                "l10n_ar_tax_closing_date_to": self.date_to,
             }
         )
 
-        # Trazabilidad: vinculamos el asiento al Libro IVA de origen.
-        if self.vat_ledger_id:
-            self.vat_ledger_id.tax_closing_move_id = move
+        # Trazabilidad: vinculamos el asiento a TODOS los Libros IVA del período
+        # (ventas y compras), no solo al que lanzó el cierre, así desde cualquiera
+        # se ve "Ver asiento de cierre" / "Pagar cierre".
+        ledgers = self.env["account.vat.ledger"].search(
+            [
+                ("company_id", "=", self.company_id.id),
+                ("date_from", "=", self.date_from),
+                ("date_to", "=", self.date_to),
+            ]
+        )
+        ledgers |= self.vat_ledger_id
+        if ledgers:
+            ledgers.tax_closing_move_id = move
 
         return {
             "type": "ir.actions.act_window",
