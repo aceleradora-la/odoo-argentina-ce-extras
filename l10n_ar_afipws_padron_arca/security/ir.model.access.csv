@@ -1,0 +1,5 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_padron_activity_user,padron.activity.user,model_l10n_ar_padron_activity,base.group_user,1,0,0,0
+access_padron_activity_manager,padron.activity.manager,model_l10n_ar_padron_activity,base.group_system,1,1,1,1
+access_padron_tax_user,padron.tax.user,model_l10n_ar_padron_tax,base.group_user,1,0,0,0
+access_padron_tax_manager,padron.tax.manager,model_l10n_ar_padron_tax,base.group_system,1,1,1,1

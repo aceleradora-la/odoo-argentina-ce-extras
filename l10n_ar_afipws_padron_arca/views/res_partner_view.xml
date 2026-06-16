@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <record id="view_partner_form_padron_arca" model="ir.ui.view">
+        <field name="name">res.partner.form.padron.arca</field>
+        <field name="model">res.partner</field>
+        <field name="inherit_id" ref="base.view_partner_form"/>
+        <field name="arch" type="xml">
+            <notebook position="inside">
+                <page string="Padrón ARCA" name="padron_arca">
+                    <group>
+                        <field name="last_update_census"/>
+                    </group>
+                    <group string="Actividades / Impuestos (Padrón)">
+                        <field name="actividades_padron" widget="many2many_tags"/>
+                        <field name="impuestos_padron" widget="many2many_tags"/>
+                    </group>
+                </page>
+            </notebook>
+        </field>
+    </record>
+</odoo>
