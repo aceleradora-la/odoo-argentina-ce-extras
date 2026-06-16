@@ -4,7 +4,7 @@
          <field name="name">download_files_wizard.search</field>
          <field name="model">res.download_files_wizard</field>
          <field name="arch" type="xml">
-            <search string="Download File">
+            <search string="Descargar archivo">
             </search>
          </field>
      </record>

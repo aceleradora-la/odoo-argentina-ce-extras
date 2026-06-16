@@ -16,7 +16,7 @@ class InflationAdjustmentIndex(models.Model):
         required=True,
         digits=(12, 4),
     )
-    xml_id = fields.Char(compute="_compute_xml_id", string="External ID")
+    xml_id = fields.Char(compute="_compute_xml_id", string="ID externo")
 
     @api.depends()
     def _compute_xml_id(self):

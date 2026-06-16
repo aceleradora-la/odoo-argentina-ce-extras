@@ -16,7 +16,7 @@
         <field name="name">inflation.adjustment.index.search</field>
         <field name="model">inflation.adjustment.index</field>
         <field name="arch" type="xml">
-            <search string="Search Description">
+            <search string="Buscar índice">
                 <field name="date"/>
             </search>
         </field>

@@ -94,8 +94,8 @@ class AccountJournal(models.Model):
 
     settlement_tax = fields.Selection(
         [
-            ("vat", "VAT"),
-            ("profits", "Profits"),
+            ("vat", "IVA"),
+            ("profits", "Ganancias"),
             ("misiones", "TXT IIBB aplicado DGR Misiones"),
             ("sicore_aplicado", "TXT SICORE Aplicado"),
             ("iibb_sufrido", "TXT IIBB p/ SIFERE"),
@@ -113,17 +113,17 @@ class AccountJournal(models.Model):
             ("iibb_aplicado_dgr_mendoza", "TXT  Perc/Ret IIBB aplicado DGR Mendoza"),
             ("retenciones_iva", "TXT Retenciones/Percepciones Sufridas IVA"),
         ],
-        string="Settlement Tax",
+        string="Impuesto a liquidar",
     )
 
     # Gate field; mirrors the Enterprise account_tax_settlement design.
     # The actual settlement type lives in `settlement_tax` only.
     tax_settlement = fields.Selection(
         [
-            ("yes", "Yes"),
-            ("allow_per_line", "Yes, allow per line"),
+            ("yes", "Sí"),
+            ("allow_per_line", "Sí, permitir por línea"),
         ],
-        string="Tax Settlement",
+        string="Liquidación de impuestos",
     )
 
     # Tags que este diario liquida. Equivalente al campo del módulo Enterprise:
