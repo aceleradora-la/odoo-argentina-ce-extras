@@ -1,5 +1,7 @@
 from collections import defaultdict
 
+from dateutil.relativedelta import relativedelta
+
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
 
@@ -137,6 +139,13 @@ class L10nArTaxClosingWizard(models.TransientModel):
             if acc:
                 res["receivable_account_id"] = acc.id
         return res
+
+    @api.onchange("date_from")
+    def _onchange_date_from(self):
+        """Al elegir la fecha desde, proponer como fecha hasta el último día de
+        ese mes (editable, por si el cierre es trimestral u otro rango)."""
+        if self.date_from and (not self.date_to or self.date_to < self.date_from):
+            self.date_to = self.date_from + relativedelta(day=31)
 
     # -------------------------------------------------------------------------
 
