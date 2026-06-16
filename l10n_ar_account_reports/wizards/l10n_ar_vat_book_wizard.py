@@ -220,19 +220,15 @@ class L10nArVatBookWizard(models.TransientModel):
     def _vat_simple_activity_sql(self):
         """Devuelve (activity_select, activity_joins) para el query de ventas.
 
-        La actividad AFIP puede provenir de:
-          * un Char propio `l10n_ar_afip_activity_code` (este módulo), o
-          * un Many2one `l10n_ar_afip_activity_id` a `afip.activity` (Enterprise).
-        Se detecta cuál está presente en cuenta y compañía; si no hay ninguno,
-        se usa la actividad por defecto '0' para que el export no falle.
+        La actividad AFIP proviene del Many2one `l10n_ar_afip_activity_id` a
+        `afip.activity` (de l10n_ar_ux), tanto en la cuenta como en la compañía.
+        Se detecta su presencia y, si falta, se usa la actividad por defecto '0'
+        para que el export no falle.
         """
 
         def field_sql(model, table_alias, join_alias):
             """Devuelve (coalesce_expr, join_sql_or_None) para un modelo dado."""
-            fields = self.env[model]._fields
-            if "l10n_ar_afip_activity_code" in fields:
-                return SQL("%s.l10n_ar_afip_activity_code" % table_alias), None
-            if "l10n_ar_afip_activity_id" in fields:
+            if "l10n_ar_afip_activity_id" in self.env[model]._fields:
                 return (
                     SQL("%s.code" % join_alias),
                     SQL(
