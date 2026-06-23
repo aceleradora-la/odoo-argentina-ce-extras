@@ -21,19 +21,23 @@
         <field name="model">account.journal</field>
         <field name="inherit_id" ref="account.account_journal_dashboard_kanban_view" />
         <field name="arch" type="xml">
+            <!-- Exponer el campo para los templates kanban -->
             <field name="kanban_dashboard" position="after">
                 <field name="tax_settlement"/>
             </field>
-            <field name="json_activity_data" position="before">
+            <!-- Cuerpo de liquidación: los diarios de liquidación son tipo 'general',
+                 que en 19 se renderizan vía el template JournalMiscelaneous. -->
+            <xpath expr="//t[@t-call='JournalMiscelaneous']" position="after">
                 <t t-if="record.tax_settlement.raw_value" t-call="JournalBodyTaxSettlement"/>
-            </field>
-            <!-- add new payment after existing journal entries button -->
-            <xpath expr="//button[@name='action_create_new']" position="after">
+            </xpath>
+            <!-- Botón "Nuevo Pago" junto al botón New del diario misceláneo -->
+            <xpath expr="//button[@id='new_misc_entry_button']" position="after">
                 <button type="object" name="action_create_payment" class="btn btn-primary" t-if="record.tax_settlement.raw_value">
                     <span>Nuevo Pago</span>
                 </button>
             </xpath>
-            <templates>
+            <!-- Definición del template reutilizado para el cuerpo de liquidación -->
+            <xpath expr="//templates" position="inside">
                 <t t-name="JournalBodyTaxSettlement" class="flex-row">
                     <div class="row">
                         <div class="col-12">
@@ -52,7 +56,7 @@
                         </div>
                     </div>
                 </t>
-            </templates>
+            </xpath>
         </field>
     </record>
 
