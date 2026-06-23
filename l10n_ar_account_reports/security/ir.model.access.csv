@@ -1,3 +1,5 @@
 id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
 access_l10n_ar_vat_book_wizard,l10n_ar.vat.book.wizard,model_l10n_ar_vat_book_wizard,account.group_account_user,1,1,1,1
 access_l10n_ar_vat_book_wizard_manager,l10n_ar.vat.book.wizard,model_l10n_ar_vat_book_wizard,account.group_account_manager,1,1,1,1
+access_afip_activity_manager,afip.activity manager,model_afip_activity,account.group_account_manager,1,1,1,1
+access_afip_activity_all,afip.activity all,model_afip_activity,base.group_user,1,0,0,0

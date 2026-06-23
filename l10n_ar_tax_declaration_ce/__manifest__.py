@@ -10,7 +10,7 @@
 ##############################################################################
 {
     "name": "Declaración Fiscal Argentina (Community)",
-    "version": "18.0.5.4.0",
+    "version": "19.0.5.4.0",
     "category": "Accounting",
     "author": "Aceleradora-Latam",
     "website": "https://github.com/aceleradora-la/odoo-argentina-ce-extras",
