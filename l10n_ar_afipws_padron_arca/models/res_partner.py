@@ -141,17 +141,26 @@ class ResPartner(models.Model):
         )
         actividades_raw = [a for a in actividades_raw if a and a.get("idActividad") is not None]
 
-        tax_recs = self._padron_get_or_create(
-            "afip.tax",
-            [(str(i.get("idImpuesto")), self._padron_clean_str(i.get("descripcionImpuesto"))) for i in impuestos_raw],
-        )
-        act_recs = self._padron_get_or_create(
-            "afip.activity",
-            [
-                (str(a.get("idActividad")), self._padron_clean_str(a.get("descripcionActividad")))
-                for a in actividades_raw
-            ],
-        )
+        # afip.tax existe en l10n_ar_ux (17/18/19); afip.activity solo en 17/18
+        # (en 19 se eliminó junto con el campo actividades_padron).
+        tax_recs = None
+        if "afip.tax" in self.env:
+            tax_recs = self._padron_get_or_create(
+                "afip.tax",
+                [
+                    (str(i.get("idImpuesto")), self._padron_clean_str(i.get("descripcionImpuesto")))
+                    for i in impuestos_raw
+                ],
+            )
+        act_recs = None
+        if "afip.activity" in self.env:
+            act_recs = self._padron_get_or_create(
+                "afip.activity",
+                [
+                    (str(a.get("idActividad")), self._padron_clean_str(a.get("descripcionActividad")))
+                    for a in actividades_raw
+                ],
+            )
 
         # --- IVA por código de impuesto (no por el flag imp_iva, que viene roto) ---
         if "32" in imp_codes:
@@ -189,17 +198,21 @@ class ResPartner(models.Model):
             ),
             "city": self._padron_clean_str(domicilio.get("localidad") or ""),
             "zip": domicilio.get("codPostal") or "",
-            "actividades_padron": act_recs.ids,
-            "impuestos_padron": tax_recs.ids,
             "estado_padron": estado_clave or "",
             "monotributo_padron": monotributo,
             "imp_iva_padron": imp_iva,
             "actividad_monotributo_padron": self._padron_clean_str(cat_mt.get("descripcionCategoria") or ""),
             "empleador_padron": "301" in imp_codes,
+            # campos de "última actualización": existen según versión/módulo
             "last_update_census": fields.Date.today(),
+            "last_update_padron": fields.Date.today(),
         }
         if imp_ganancias:
             vals["imp_ganancias_padron"] = imp_ganancias
+        if act_recs is not None:
+            vals["actividades_padron"] = act_recs.ids
+        if tax_recs is not None:
+            vals["impuestos_padron"] = tax_recs.ids
 
         # --- Provincia ---
         if provincia:
@@ -235,7 +248,8 @@ class ResPartner(models.Model):
                 estado_clave,
             )
 
-        return vals
+        # Solo devolvemos campos que existan en esta versión (17/18 vs 19).
+        return {k: v for k, v in vals.items() if k in self._fields}
 
     @api.model
     def _padron_get_or_create(self, model_name, items):
