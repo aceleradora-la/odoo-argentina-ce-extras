@@ -15,7 +15,7 @@ class AfipwsConnection(models.Model):
         selection_add=[
             (
                 "ws_sr_constancia_inscripcion",
-                "Servicio de Consulta a Padrón Constancia de Inscripción (getPersona_v2)",
+                "ARCA - Constancia de Inscripción (Padrón, getPersona_v2)",
             )
         ],
         ondelete={"ws_sr_constancia_inscripcion": "cascade"},

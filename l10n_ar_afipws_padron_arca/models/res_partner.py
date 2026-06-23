@@ -196,7 +196,9 @@ class ResPartner(models.Model):
             "street": self._padron_clean_str(
                 domicilio.get("direccion") or domicilio.get("localidad") or provincia
             ),
-            "city": self._padron_clean_str(domicilio.get("localidad") or ""),
+            "city": self._padron_clean_str(
+                domicilio.get("localidad") or domicilio.get("descripcionProvincia") or provincia or ""
+            ),
             "zip": domicilio.get("codPostal") or "",
             "estado_padron": estado_clave or "",
             "monotributo_padron": monotributo,
@@ -209,6 +211,11 @@ class ResPartner(models.Model):
         }
         if imp_ganancias:
             vals["imp_ganancias_padron"] = imp_ganancias
+
+        # País: siempre Argentina (el padrón ARCA es solo nacional)
+        argentina = self.env.ref("base.ar", raise_if_not_found=False)
+        if argentina:
+            vals["country_id"] = argentina.id
         if act_recs is not None:
             vals["actividades_padron"] = act_recs.ids
         if tax_recs is not None:
