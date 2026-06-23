@@ -77,7 +77,7 @@
             <field name="name">Impuestos Argentina</field>
             <field name="parent_id" ref="account.menu_finance_entries"/>
             <field name="sequence">15</field>
-            <field name="groups_id" eval="[(4, ref('account.group_account_user'))]"/>
+            <field name="group_ids" eval="[(4, ref('account.group_account_user'))]"/>
         </record>
     </data>
 
