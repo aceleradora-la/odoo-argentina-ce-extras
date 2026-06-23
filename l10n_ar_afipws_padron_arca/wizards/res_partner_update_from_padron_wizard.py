@@ -5,6 +5,7 @@ from odoo import api, models
 # Campos adicionales que el wizard base no contempla en su dominio
 EXTRA_FIELDS = [
     "state_id",
+    "country_id",
     "actividades_padron",
     "impuestos_padron",
     "estado_padron",
@@ -46,7 +47,7 @@ class ResPartnerUpdateFromPadronWizard(models.TransientModel):
         no lo persiste. Acá casteamos esos campos con ``literal_eval`` igual que
         lo hace la versión enterprise (l10n_ar_edi_ux)."""
         self.ensure_one()
-        m2o_fields = ("state_id", "l10n_ar_afip_responsibility_type_id")
+        m2o_fields = ("state_id", "country_id", "l10n_ar_afip_responsibility_type_id")
         vals = {}
         for field in self.field_ids:
             if field.field in ("impuestos_padron", "actividades_padron"):
