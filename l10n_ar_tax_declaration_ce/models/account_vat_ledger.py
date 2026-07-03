@@ -179,6 +179,31 @@ class AccountVatLedger(models.Model):
             },
         }
 
+    def _get_tax_row(self, invoice, base, code, tax_amount, impo=False):
+        """Corrige un bug de l10n_ar_reports en el TXT del Libro IVA Digital
+        (RG 3685) para comprobantes en moneda extranjera.
+
+        `invoice._get_vat()` (l10n_ar, Community) devuelve BaseImp/Importe
+        en la MONEDA DEL COMPROBANTE (amount_currency), pero el "Importe
+        Total" del voucher (`_get_REGINFO_CV_CBTE`, archivo Vouchers_*.txt)
+        usa `amount_total_signed`, que SIEMPRE está en moneda de compañía.
+        Para facturas en USD/otra moneda esto desajusta el archivo
+        Alicuots_*.txt exactamente por el tipo de cambio del comprobante, y
+        el Portal IVA de AFIP lo rechaza con:
+        "El Importe Total (X) no coincide con la suma de los demás montos (Y)".
+
+        Convertimos a moneda de compañía antes de armar la fila; si el
+        comprobante ya está en moneda de compañía, es un no-op.
+        """
+        if invoice.currency_id != invoice.company_currency_id:
+            base = invoice.currency_id._convert(
+                base, invoice.company_currency_id, invoice.company_id, invoice.date
+            )
+            tax_amount = invoice.currency_id._convert(
+                tax_amount, invoice.company_currency_id, invoice.company_id, invoice.date
+            )
+        return super()._get_tax_row(invoice, base, code, tax_amount, impo=impo)
+
     def compute_iva_simple_data(self):
         """Genera el ZIP de IVA Simple delegando en el wizard existente."""
         self.ensure_one()
