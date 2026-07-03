@@ -94,6 +94,21 @@ class AccountJournal(models.Model):
         
         return False
 
+    def _l10n_ar_write_settlement_csv(self, rows, headers):
+        """Arma un CSV ';' delimitado, mismo criterio que l10n_ar_vat_book_wizard
+        (DictWriter, separador de decimales ',' vía _l10n_ar_format_settlement_amount).
+        Usado por los generadores de TXT que optaron por CSV explícito en vez
+        de ancho fijo (SIFERE, SIRCAR, Ret/Perc IVA Sufridas)."""
+        fp = io.StringIO()
+        writer = DictWriter(fp, fieldnames=headers, delimiter=";", lineterminator="\r\n")
+        writer.writeheader()
+        writer.writerows(rows)
+        return fp.getvalue()
+
+    @staticmethod
+    def _l10n_ar_format_settlement_amount(amount):
+        return ("%.2f" % (amount or 0.0)).replace(".", ",")
+
     settlement_tax = fields.Selection(
         [
             ("vat", "IVA"),
@@ -501,6 +516,155 @@ class AccountJournal(models.Model):
             {
                 "txt_filename": "Perc/Ret IIBB API Aplicadas.txt",
                 "txt_content": perc + ret,
+            }
+        ]
+
+    def iibb_aplicado_sircar_files_values(self, move_lines):
+        """Percepciones/Retenciones de IIBB aplicadas bajo SIRCAR (Sistema de
+        Recaudación y Control de Agentes de Retención), usado por varias
+        jurisdicciones de Convenio Multilateral (ej. San Juan, Chubut).
+
+        Igual que iibb_aplicado_api/agip: se clasifica por tipo de impuesto
+        (percepción si type_tax_use en sale/purchase, retención si
+        l10n_ar_withholding_payment_type en customer/supplier). Formato CSV
+        ';' con columnas explícitas para facilitar validación/ajuste contra
+        el TXT de referencia antes de usar en producción.
+        """
+        self.ensure_one()
+        headers = [
+            "Tipo",
+            "CUIT Sujeto",
+            "Razón Social",
+            "Fecha",
+            "Comprobante",
+            "Código Régimen",
+            "Base Imponible",
+            "Alícuota",
+            "Importe",
+        ]
+        rows = []
+
+        for line in move_lines.sorted(key=lambda r: (r.date, r.id)):
+            partner = line.partner_id
+            if not partner.vat:
+                raise ValidationError(
+                    _('El partner "%s" (id %s) no tiene CUIT/CUIL establecido, requerido para SIRCAR.')
+                    % (partner.name, partner.id)
+                )
+
+            tax = line._get_settlement_tax()
+            codigo_regimen = self._get_tax_code(tax, line) or ""
+
+            if tax.type_tax_use in ("sale", "purchase"):
+                tipo = "P"  # Percepción
+            elif tax.l10n_ar_withholding_payment_type in ("customer", "supplier"):
+                tipo = "R"  # Retención
+            else:
+                raise ValidationError(
+                    _("El impuesto '%s' no es percepción ni retención: no se puede incluir en SIRCAR.")
+                    % tax.name
+                )
+
+            move = line.move_id
+            payment = line.payment_id
+            if payment:
+                comprobante = payment.name or ""
+                fecha = payment.date
+                base_amount = line._l10n_ar_withholding_data()[1]
+            else:
+                comprobante = re.sub("[^0-9]", "", move.l10n_latam_document_number or "")
+                fecha = move.invoice_date or line.date
+                base_amount = line.tax_base_amount
+
+            rows.append(
+                {
+                    "Tipo": tipo,
+                    "CUIT Sujeto": partner.ensure_vat(),
+                    "Razón Social": partner.name or "",
+                    "Fecha": fields.Date.from_string(fecha).strftime("%d/%m/%Y"),
+                    "Comprobante": comprobante,
+                    "Código Régimen": codigo_regimen,
+                    "Base Imponible": self._l10n_ar_format_settlement_amount(base_amount),
+                    "Alícuota": self._l10n_ar_format_settlement_amount(tax.amount),
+                    "Importe": self._l10n_ar_format_settlement_amount(abs(line.balance)),
+                }
+            )
+
+        return [
+            {
+                "txt_filename": "SIRCAR_Perc_Ret_Aplicadas.txt",
+                "txt_content": self._l10n_ar_write_settlement_csv(rows, headers),
+            }
+        ]
+
+    def retenciones_iva_files_values(self, move_lines):
+        """TXT de Retenciones/Percepciones de IVA sufridas: percepciones de
+        IVA que aplicó un proveedor en una factura de compra (impuesto con
+        código AFIP de tributo, l10n_ar_tribute_afip_code) y retenciones de
+        IVA que aplicó un cliente al pagarnos (apunte de pago).
+
+        Mismo criterio que iibb_sufrido_files_values: las líneas ya vienen
+        filtradas por los tags configurados en el diario de liquidación.
+        """
+        self.ensure_one()
+        headers = [
+            "Tipo",
+            "CUIT Agente",
+            "Fecha",
+            "Comprobante",
+            "Código Régimen",
+            "Base Imponible",
+            "Importe",
+        ]
+        rows = []
+
+        for line in move_lines.sorted(key=lambda r: (r.date, r.id)):
+            partner = line.partner_id
+            if not partner.vat:
+                raise ValidationError(
+                    _('El partner "%s" (id %s) no tiene CUIT/CUIL establecido, requerido para este TXT.')
+                    % (partner.name, partner.id)
+                )
+
+            tax = line._get_settlement_tax()
+            codigo_regimen = self._get_tax_code(tax, line) or ""
+
+            if line.payment_id:
+                tipo = "R"  # Retención sufrida (nos retuvieron al cobrar)
+                certificado, base_amount = line._l10n_ar_withholding_data()
+                fecha = line.payment_id.date
+                comprobante = certificado
+            else:
+                move = line.move_id
+                if not move.is_invoice() or move.move_type not in ("in_invoice", "in_refund"):
+                    raise ValidationError(
+                        _(
+                            "El apunte %s (id %s) no proviene de un pago ni de una factura "
+                            "de compra: no se puede incluir en el TXT de Ret/Perc IVA Sufridas."
+                        )
+                        % (line.display_name, line.id)
+                    )
+                tipo = "P"  # Percepción sufrida (nos la aplicó el proveedor)
+                fecha = move.invoice_date
+                comprobante = re.sub("[^0-9]", "", move.l10n_latam_document_number or "")
+                base_amount = line.tax_base_amount
+
+            rows.append(
+                {
+                    "Tipo": tipo,
+                    "CUIT Agente": partner.ensure_vat(),
+                    "Fecha": fields.Date.from_string(fecha).strftime("%d/%m/%Y"),
+                    "Comprobante": comprobante,
+                    "Código Régimen": codigo_regimen,
+                    "Base Imponible": self._l10n_ar_format_settlement_amount(base_amount),
+                    "Importe": self._l10n_ar_format_settlement_amount(abs(line.balance)),
+                }
+            )
+
+        return [
+            {
+                "txt_filename": "Retenciones_Percepciones_IVA_Sufridas.txt",
+                "txt_content": self._l10n_ar_write_settlement_csv(rows, headers),
             }
         ]
 
@@ -956,19 +1120,6 @@ class AccountJournal(models.Model):
     # Código de tipo de comprobante AFIP para Despacho de Importación.
     _SIFERE_IMPORT_DOCUMENT_CODE = "66"
 
-    def _sifere_write_csv(self, rows, headers):
-        """Arma un CSV ';' delimitado, mismo criterio que l10n_ar_vat_book_wizard
-        (DictWriter, separador de decimales ',' vía _sifere_format_amount)."""
-        fp = io.StringIO()
-        writer = DictWriter(fp, fieldnames=headers, delimiter=";", lineterminator="\r\n")
-        writer.writeheader()
-        writer.writerows(rows)
-        return fp.getvalue()
-
-    @staticmethod
-    def _sifere_format_amount(amount):
-        return ("%.2f" % (amount or 0.0)).replace(".", ",")
-
     def iibb_sufrido_files_values(self, move_lines):
         """Genera los TXT (CSV ';') de IIBB sufrido para SIFERE (Comisión
         Arbitral - Convenio Multilateral):
@@ -1023,8 +1174,8 @@ class AccountJournal(models.Model):
                         "Comprobante": certificado,
                         "Jurisdicción": jurisdiccion,
                         "Código Régimen": codigo_regimen,
-                        "Base Imponible": self._sifere_format_amount(base_amount),
-                        "Importe": self._sifere_format_amount(abs(line.balance)),
+                        "Base Imponible": self._l10n_ar_format_settlement_amount(base_amount),
+                        "Importe": self._l10n_ar_format_settlement_amount(abs(line.balance)),
                     }
                 )
                 continue
@@ -1045,8 +1196,8 @@ class AccountJournal(models.Model):
                 "Comprobante": re.sub("[^0-9]", "", move.l10n_latam_document_number or ""),
                 "Jurisdicción": jurisdiccion,
                 "Código Régimen": codigo_regimen,
-                "Base Imponible": self._sifere_format_amount(line.tax_base_amount),
-                "Importe": self._sifere_format_amount(abs(line.balance)),
+                "Base Imponible": self._l10n_ar_format_settlement_amount(line.tax_base_amount),
+                "Importe": self._l10n_ar_format_settlement_amount(abs(line.balance)),
             }
             if move.l10n_latam_document_type_id.code == self._SIFERE_IMPORT_DOCUMENT_CODE:
                 despachos.append(row)
@@ -1058,21 +1209,21 @@ class AccountJournal(models.Model):
             files.append(
                 {
                     "txt_filename": "SIFERE_Retenciones_Sufridas.txt",
-                    "txt_content": self._sifere_write_csv(retenciones, common_headers),
+                    "txt_content": self._l10n_ar_write_settlement_csv(retenciones, common_headers),
                 }
             )
         if percepciones:
             files.append(
                 {
                     "txt_filename": "SIFERE_Percepciones_Sufridas.txt",
-                    "txt_content": self._sifere_write_csv(percepciones, common_headers),
+                    "txt_content": self._l10n_ar_write_settlement_csv(percepciones, common_headers),
                 }
             )
         if despachos:
             files.append(
                 {
                     "txt_filename": "SIFERE_Despachos_Importacion.txt",
-                    "txt_content": self._sifere_write_csv(despachos, common_headers),
+                    "txt_content": self._l10n_ar_write_settlement_csv(despachos, common_headers),
                 }
             )
         return files
