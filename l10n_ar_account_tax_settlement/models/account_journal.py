@@ -1,9 +1,7 @@
 # from odoo.tools.misc import formatLang
 # from odoo.tools import DEFAULT_SERVER_DATE_FORMAT
-import io
 import re
 import unicodedata
-from csv import DictWriter
 
 from odoo import _, fields, models
 from odoo.exceptions import RedirectWarning, ValidationError
@@ -93,21 +91,6 @@ class AccountJournal(models.Model):
                         return withholding_tax.l10n_ar_code
         
         return False
-
-    def _l10n_ar_write_settlement_csv(self, rows, headers):
-        """Arma un CSV ';' delimitado, mismo criterio que l10n_ar_vat_book_wizard
-        (DictWriter, separador de decimales ',' vía _l10n_ar_format_settlement_amount).
-        Usado por los generadores de TXT que optaron por CSV explícito en vez
-        de ancho fijo (SIFERE, SIRCAR, Ret/Perc IVA Sufridas)."""
-        fp = io.StringIO()
-        writer = DictWriter(fp, fieldnames=headers, delimiter=";", lineterminator="\r\n")
-        writer.writeheader()
-        writer.writerows(rows)
-        return fp.getvalue()
-
-    @staticmethod
-    def _l10n_ar_format_settlement_amount(amount):
-        return ("%.2f" % (amount or 0.0)).replace(".", ",")
 
     settlement_tax = fields.Selection(
         [
@@ -502,150 +485,230 @@ class AccountJournal(models.Model):
 
     def iibb_aplicado_sircar_files_values(self, move_lines):
         """Percepciones/Retenciones de IIBB aplicadas bajo SIRCAR (Sistema de
-        Recaudación y Control de Agentes de Retención), usado por varias
-        jurisdicciones de Convenio Multilateral (ej. San Juan, Chubut).
+        Recaudación y Control de Agentes de Retención - Comisión Arbitral),
+        portado 1:1 desde l10n_ar_account_reports (Enterprise, ingadhoc):
+        https://github.com/ingadhoc/odoo-argentina-ee/blob/47fbbde/l10n_ar_account_reports/models/sircar_report.py
 
-        Igual que iibb_aplicado_api/agip: se clasifica por tipo de impuesto
-        (percepción si type_tax_use en sale/purchase, retención si
-        l10n_ar_withholding_payment_type en customer/supplier). Formato CSV
-        ';' con columnas explícitas para facilitar validación/ajuste contra
-        el TXT de referencia antes de usar en producción.
+        Clasificación (EE usa 2 dominios/botones separados; acá recibimos un
+        único `move_lines` ya filtrado por los tags del diario y lo separamos
+        igual): retención si l10n_ar_withholding_payment_type == 'supplier',
+        percepción si type_tax_use == 'sale'.
         """
         self.ensure_one()
-        headers = [
-            "Tipo",
-            "CUIT Sujeto",
-            "Razón Social",
-            "Fecha",
-            "Comprobante",
-            "Código Régimen",
-            "Base Imponible",
-            "Alícuota",
-            "Importe",
-        ]
-        rows = []
 
-        for line in move_lines.sorted(key=lambda r: (r.date, r.id)):
-            partner = line.partner_id
-            if not partner.vat:
-                raise ValidationError(
-                    _('El partner "%s" (id %s) no tiene CUIT/CUIL establecido, requerido para SIRCAR.')
-                    % (partner.name, partner.id)
-                )
-
+        ret_lines = self.env["account.move.line"]
+        perc_lines = self.env["account.move.line"]
+        for line in move_lines:
             tax = line._get_settlement_tax()
-            codigo_regimen = self._get_tax_code(tax, line) or ""
-
-            if tax.type_tax_use in ("sale", "purchase"):
-                tipo = "P"  # Percepción
-            elif tax.l10n_ar_withholding_payment_type in ("customer", "supplier"):
-                tipo = "R"  # Retención
+            if tax.l10n_ar_withholding_payment_type == "supplier":
+                ret_lines |= line
+            elif tax.type_tax_use == "sale":
+                perc_lines |= line
             else:
                 raise ValidationError(
                     _("El impuesto '%s' no es percepción ni retención: no se puede incluir en SIRCAR.")
                     % tax.name
                 )
 
-            move = line.move_id
-            payment = line.payment_id
-            if payment:
-                comprobante = payment.name or ""
-                fecha = payment.date
-                base_amount = line._l10n_ar_withholding_data()[1]
-            else:
-                comprobante = re.sub("[^0-9]", "", move.l10n_latam_document_number or "")
-                fecha = move.invoice_date or line.date
-                base_amount = line.tax_base_amount
-
-            rows.append(
+        files = []
+        if ret_lines:
+            files.append(
                 {
-                    "Tipo": tipo,
-                    "CUIT Sujeto": partner.ensure_vat(),
-                    "Razón Social": partner.name or "",
-                    "Fecha": fields.Date.from_string(fecha).strftime("%d/%m/%Y"),
-                    "Comprobante": comprobante,
-                    "Código Régimen": codigo_regimen,
-                    "Base Imponible": self._l10n_ar_format_settlement_amount(base_amount),
-                    "Alícuota": self._l10n_ar_format_settlement_amount(tax.amount),
-                    "Importe": self._l10n_ar_format_settlement_amount(abs(line.balance)),
+                    "txt_filename": "SIRCAR_Retenciones_Aplicadas.txt",
+                    "txt_content": self._sircar_txt_content(ret_lines, "ret"),
                 }
             )
+        if perc_lines:
+            files.append(
+                {
+                    "txt_filename": "SIRCAR_Percepciones_Aplicadas.txt",
+                    "txt_content": self._sircar_txt_content(perc_lines, "perc"),
+                }
+            )
+        return files
 
-        return [
-            {
-                "txt_filename": "SIRCAR_Perc_Ret_Aplicadas.txt",
-                "txt_content": self._l10n_ar_write_settlement_csv(rows, headers),
-            }
-        ]
+    def _sircar_txt_content(self, move_lines, file_type):
+        lines = []
+        line_nbr = 1
+        if file_type == "ret":
+            for line in move_lines.filtered("amount_currency").sorted(key=lambda r: (r.date, r.id)):
+                tax = line._get_settlement_tax()
+                alicuot = tax.amount
+                internal_type = line.l10n_latam_document_type_id.internal_type
+
+                content = ["%05d" % line_nbr]  # 1: Número de renglón (único por archivo)
+                content.append("1")  # 2: Origen del comprobante
+                # 3: Tipo del comprobante
+                content.append("1" if line.payment_id.payment_type == "outbound" else "2")
+                # 4: Número del comprobante
+                content.append("%012d" % int(re.sub("[^0-9]", "", line.payment_id.name or "0")))
+                # 5: CUIT del contribuyente
+                content.append(line.partner_id.ensure_vat())
+                # 6: Fecha de la percepción/retención
+                content.append(fields.Date.from_string(line.date).strftime("%d/%m/%Y"))
+                # 7: Monto sujeto a percepción/retención
+                content.append(format_amount(line._l10n_ar_withholding_data()[1], 12, 2, "."))
+                # 8: Alícuota
+                content.append(format_amount(alicuot, 6, 2, "."))
+                # 9: Monto retenido
+                content.append(format_amount(-line.balance, 12, 2, "."))
+                # 10: Código de régimen (según tabla de la jurisdicción)
+                if not tax.l10n_ar_code:
+                    raise ValidationError(
+                        _("No hay código de régimen (código ARCA 'l10n_ar_code') configurado para el impuesto '%s'.")
+                        % tax.name
+                    )
+                content.append(tax.l10n_ar_code)
+                # 11: Jurisdicción (código Convenio Multilateral)
+                if not tax.l10n_ar_state_id.jurisdiction_code:
+                    raise ValidationError(
+                        _('El impuesto "%s" no tiene jurisdicción configurada, o la jurisdicción no tiene código.')
+                        % tax.name
+                    )
+                content.append(tax.l10n_ar_state_id.jurisdiction_code)
+
+                if tax.l10n_ar_state_id.jurisdiction_code in ("904", "914"):  # Córdoba
+                    # 12: Tipo de operación (1-Efectuada, 2-Anulada, 3-Omitida)
+                    content.append("2" if internal_type == "supplier_payment" else "1")
+                    # 13: Fecha de emisión de constancia
+                    content.append(fields.Date.from_string(line.date).strftime("%d/%m/%Y"))
+                    # 14: Número de constancia
+                    certificado = line._l10n_ar_withholding_data()[0]
+                    content.append("%014s" % int(re.sub("[^0-9]", "", certificado or "0")[:14] or "0"))
+                    # 15: Número de constancia original (solo anulaciones)
+                    reconciled_bills = line.payment_id.reconciled_bill_ids
+                    original_invoice = reconciled_bills.reversed_entry_id or line.move_id
+                    content.append(
+                        "%014d" % int(re.sub("[^0-9]", "", original_invoice.name or "0"))
+                        if internal_type == "supplier_payment"
+                        else "%014d" % 0
+                    )
+                lines.append(",".join(content) + "\r\n")
+                line_nbr += 1
+        else:
+            for line in move_lines.filtered("amount_currency").sorted(key=lambda r: (r.date, r.id)):
+                tax = line._get_settlement_tax()
+                alicuot = tax.amount
+                internal_type = line.l10n_latam_document_type_id.internal_type
+                letter = line.l10n_latam_document_type_id.l10n_ar_letter
+
+                content = ["%05d" % line_nbr]  # 1: Número de renglón
+                # 2: Tipo de comprobante
+                if internal_type == "invoice":
+                    tipo_comprobante = 5 if letter == "E" else 1
+                elif internal_type == "credit_note":
+                    tipo_comprobante = 106 if letter == "E" else 102
+                elif internal_type == "debit_note":
+                    tipo_comprobante = 6 if letter == "E" else 2
+                elif line.move_id.move_type == "out_invoice":
+                    tipo_comprobante = 20
+                elif line.move_id.move_type == "out_refund":
+                    tipo_comprobante = 120
+                else:
+                    raise ValidationError(_("Tipo de comprobante no reconocido para SIRCAR."))
+                content.append("%03d" % tipo_comprobante)
+                # 3: Letra del comprobante
+                content.append(letter or "")
+                # 4: Número del comprobante
+                content.append("%012d" % int(re.sub("[^0-9]", "", line.move_id.l10n_latam_document_number or "0")))
+                # 5: CUIT del contribuyente
+                content.append(line.partner_id.ensure_vat())
+                # 6: Fecha de la percepción
+                content.append(fields.Date.from_string(line.date).strftime("%d/%m/%Y"))
+                # 7: Monto sujeto a percepción
+                content.append(format_amount(abs(get_line_tax_base(line)), 12, 2, "."))
+                # 8: Alícuota
+                content.append(format_amount(alicuot, 6, 2, "."))
+                # 9: Monto percibido
+                content.append(format_amount(abs(line.balance), 12, 2, "."))
+                # 10: Código de régimen (según tabla de la jurisdicción)
+                if not tax.l10n_ar_code:
+                    raise ValidationError(
+                        _("No hay código de régimen (código ARCA 'l10n_ar_code') configurado para el impuesto '%s'.")
+                        % tax.name
+                    )
+                content.append(tax.l10n_ar_code)
+                # 11: Jurisdicción (código Convenio Multilateral)
+                if not tax.l10n_ar_state_id.jurisdiction_code:
+                    raise ValidationError(
+                        _('El impuesto "%s" no tiene jurisdicción configurada, o la jurisdicción no tiene código.')
+                        % tax.name
+                    )
+                content.append(tax.l10n_ar_state_id.jurisdiction_code)
+
+                if tax.l10n_ar_state_id.jurisdiction_code in ("904", "914"):  # Córdoba
+                    # 12: Tipo de operación (1-Efectuada, 2-Anulada, 3-Omitida, 4-Informativa)
+                    content.append("2" if internal_type == "credit_note" else "1")
+                    # 13: Número de constancia original (solo anulaciones)
+                    content.append(
+                        self._get_perception_original_invoice_number(line)
+                        if internal_type == "credit_note"
+                        else "%014d" % 0
+                    )
+                lines.append(",".join(content) + "\r\n")
+                line_nbr += 1
+
+        return "".join(lines)
 
     def retenciones_iva_files_values(self, move_lines):
-        """TXT de Retenciones/Percepciones de IVA sufridas: percepciones de
-        IVA que aplicó un proveedor en una factura de compra (impuesto con
-        código AFIP de tributo, l10n_ar_tribute_afip_code) y retenciones de
-        IVA que aplicó un cliente al pagarnos (apunte de pago).
+        """TXT de Retenciones/Percepciones de IVA sufridas, portado 1:1
+        desde l10n_ar_account_reports (Enterprise, ingadhoc):
+        https://github.com/ingadhoc/odoo-argentina-ee/blob/47fbbde/l10n_ar_account_reports/models/l10n_ar_vat_ret_perc_sufrido.py
 
-        Mismo criterio que iibb_sufrido_files_values: las líneas ya vienen
-        filtradas por los tags configurados en el diario de liquidación.
+        Clasificación (EE usa 2 dominios/botones separados; acá recibimos un
+        único `move_lines` ya filtrado por los tags del diario y lo separamos
+        igual): retención sufrida si l10n_ar_withholding_payment_type ==
+        'customer' (pago cobrado); percepción sufrida si type_tax_use ==
+        'purchase' con código de tributo AFIP '06' (percepción IVA de compra).
         """
         self.ensure_one()
-        headers = [
-            "Tipo",
-            "CUIT Agente",
-            "Fecha",
-            "Comprobante",
-            "Código Régimen",
-            "Base Imponible",
-            "Importe",
-        ]
-        rows = []
 
-        for line in move_lines.sorted(key=lambda r: (r.date, r.id)):
-            partner = line.partner_id
-            if not partner.vat:
-                raise ValidationError(
-                    _('El partner "%s" (id %s) no tiene CUIT/CUIL establecido, requerido para este TXT.')
-                    % (partner.name, partner.id)
-                )
-
+        ret_lines = self.env["account.move.line"]
+        perc_lines = self.env["account.move.line"]
+        for line in move_lines:
             tax = line._get_settlement_tax()
-            codigo_regimen = self._get_tax_code(tax, line) or ""
-
-            if line.payment_id:
-                tipo = "R"  # Retención sufrida (nos retuvieron al cobrar)
-                certificado, base_amount = line._l10n_ar_withholding_data()
-                fecha = line.payment_id.date
-                comprobante = certificado
+            if tax.l10n_ar_withholding_payment_type == "customer":
+                ret_lines |= line
             else:
-                move = line.move_id
-                if not move.is_invoice() or move.move_type not in ("in_invoice", "in_refund"):
-                    raise ValidationError(
-                        _(
-                            "El apunte %s (id %s) no proviene de un pago ni de una factura "
-                            "de compra: no se puede incluir en el TXT de Ret/Perc IVA Sufridas."
-                        )
-                        % (line.display_name, line.id)
-                    )
-                tipo = "P"  # Percepción sufrida (nos la aplicó el proveedor)
-                fecha = move.invoice_date
-                comprobante = re.sub("[^0-9]", "", move.l10n_latam_document_number or "")
-                base_amount = line.tax_base_amount
+                perc_lines |= line
 
-            rows.append(
-                {
-                    "Tipo": tipo,
-                    "CUIT Agente": partner.ensure_vat(),
-                    "Fecha": fields.Date.from_string(fecha).strftime("%d/%m/%Y"),
-                    "Comprobante": comprobante,
-                    "Código Régimen": codigo_regimen,
-                    "Base Imponible": self._l10n_ar_format_settlement_amount(base_amount),
-                    "Importe": self._l10n_ar_format_settlement_amount(abs(line.balance)),
-                }
-            )
+        content = ""
+        for line in ret_lines.filtered("amount_currency").sorted(key=lambda r: (r.date, r.id)):
+            payment = line.payment_id
+            certificado, _base = line._l10n_ar_withholding_data()
+            withholding_tax = line._get_settlement_tax()
+            codigo_regimen = withholding_tax.l10n_ar_code
+            if not codigo_regimen or len(codigo_regimen) < 3:
+                raise ValidationError(
+                    _("El impuesto '%s' necesita un código de régimen (l10n_ar_code) de al menos 3 dígitos.")
+                    % withholding_tax.name
+                )
+            content += codigo_regimen[:3]
+            content += payment.partner_id.ensure_vat()
+            content += fields.Date.from_string(payment.date).strftime("%d/%m/%Y")
+            content += re.sub(r"[^0-9\.]", "", certificado or "").ljust(16, "0")
+            content += "%016.2f" % line.balance
+            content += "\r\n"
+
+        for line in perc_lines.filtered("amount_currency").sorted(key=lambda r: (r.date, r.id)):
+            tax = line._get_settlement_tax()
+            codigo_regimen = tax.l10n_ar_code
+            if not codigo_regimen or len(codigo_regimen) < 3:
+                raise ValidationError(
+                    _("El impuesto '%s' necesita un código de régimen (l10n_ar_code) de al menos 3 dígitos.")
+                    % tax.name
+                )
+            content += codigo_regimen[:3]
+            content += line.move_id.partner_id.ensure_vat()
+            content += fields.Date.from_string(line.move_id.invoice_date).strftime("%d/%m/%Y")
+            content += (line.move_id.l10n_latam_document_number or "").ljust(16)
+            content += "%16.2f" % line.balance
+            content += "\r\n"
 
         return [
             {
                 "txt_filename": "Retenciones_Percepciones_IVA_Sufridas.txt",
-                "txt_content": self._l10n_ar_write_settlement_csv(rows, headers),
+                "txt_content": content,
             }
         ]
 
@@ -1098,116 +1161,136 @@ class AccountJournal(models.Model):
     # SIFERE (IIBB sufrido - Convenio Multilateral)
     ###################################
 
-    # Código de tipo de comprobante AFIP para Despacho de Importación.
-    _SIFERE_IMPORT_DOCUMENT_CODE = "66"
+    # Códigos AFIP de tipo de comprobante para Despacho de Importación.
+    _SIFERE_IMPORT_DOCUMENT_CODES = ("66", "67")
 
     def iibb_sufrido_files_values(self, move_lines):
-        """Genera los TXT (CSV ';') de IIBB sufrido para SIFERE (Comisión
-        Arbitral - Convenio Multilateral):
-          * Retenciones sufridas: apuntes de pagos cobrados con retención de
-            IIBB aplicada por el cliente (line.payment_id presente).
-          * Percepciones sufridas: apuntes de impuesto en facturas de compra
-            (percepción de IIBB aplicada por el proveedor).
-          * Despachos de importación: percepciones sobre comprobantes de
-            Despacho de Importación (código AFIP 66).
+        """TXT de IIBB sufrido para SIFERE WEB (Comisión Arbitral - Convenio
+        Multilateral), portado 1:1 desde l10n_ar_account_reports (Enterprise,
+        ingadhoc) para asegurar compatibilidad con el formato real:
+        https://github.com/ingadhoc/odoo-argentina-ee/blob/47fbbde/l10n_ar_account_reports/models/sifere_report.py
 
-        Los apuntes a incluir ya vienen filtrados por los tags configurados
-        en `settlement_account_tag_ids` del diario (no se decide acá qué
-        líneas son de IIBB sufrido, eso lo define la configuración del tag).
-
-        NOTA: formato CSV con columnas explícitas, pensado para ser fácil de
-        validar/ajustar contra el TXT de referencia (por ejemplo comparando
-        con la exportación de un Odoo Enterprise) antes de usar en producción.
+        EE arma cada archivo con su propio dominio de búsqueda (3 botones);
+        acá recibimos un único `move_lines` (ya filtrado por los tags del
+        diario de liquidación) y lo clasificamos con el mismo criterio:
+          * Retenciones sufridas: impuesto con l10n_ar_withholding_payment_type
+            == 'customer' (nos retuvo el cliente al cobrar).
+          * Despachos de importación: comprobante con código AFIP 66 o 67
+            (listado informativo, se carga a mano en SIFERE WEB).
+          * Percepciones sufridas: el resto (percepción de proveedor en compra).
         """
         self.ensure_one()
 
-        common_headers = [
-            "CUIT Agente",
-            "Fecha",
-            "Comprobante",
-            "Jurisdicción",
-            "Código Régimen",
-            "Base Imponible",
-            "Importe",
-        ]
-
-        retenciones, percepciones, despachos = [], [], []
-
-        for line in move_lines.sorted(key=lambda r: (r.date, r.id)):
-            partner = line.partner_id
-            if not partner.vat:
-                raise ValidationError(
-                    _('El partner "%s" (id %s) no tiene CUIT/CUIL establecido, requerido para SIFERE.')
-                    % (partner.name, partner.id)
-                )
-
+        ret_lines = self.env["account.move.line"]
+        perc_lines = self.env["account.move.line"]
+        desp_lines = self.env["account.move.line"]
+        for line in move_lines:
             tax = line._get_settlement_tax()
-            jurisdiccion = tax.tax_group_id.name or ""
-            codigo_regimen = self._get_tax_code(tax, line) or ""
-
-            if line.payment_id:
-                # Retención sufrida: certificado/base vía helper multi-motor.
-                certificado, base_amount = line._l10n_ar_withholding_data()
-                retenciones.append(
-                    {
-                        "CUIT Agente": partner.ensure_vat(),
-                        "Fecha": fields.Date.from_string(line.payment_id.date).strftime("%d/%m/%Y"),
-                        "Comprobante": certificado,
-                        "Jurisdicción": jurisdiccion,
-                        "Código Régimen": codigo_regimen,
-                        "Base Imponible": self._l10n_ar_format_settlement_amount(base_amount),
-                        "Importe": self._l10n_ar_format_settlement_amount(abs(line.balance)),
-                    }
-                )
-                continue
-
-            move = line.move_id
-            if not move.is_invoice() or move.move_type not in ("in_invoice", "in_refund"):
-                raise ValidationError(
-                    _(
-                        "El apunte %s (id %s) no proviene de un pago ni de una factura "
-                        "de compra: no se puede incluir en SIFERE (IIBB sufrido)."
-                    )
-                    % (line.display_name, line.id)
-                )
-
-            row = {
-                "CUIT Agente": partner.ensure_vat(),
-                "Fecha": fields.Date.from_string(move.invoice_date).strftime("%d/%m/%Y"),
-                "Comprobante": re.sub("[^0-9]", "", move.l10n_latam_document_number or ""),
-                "Jurisdicción": jurisdiccion,
-                "Código Régimen": codigo_regimen,
-                "Base Imponible": self._l10n_ar_format_settlement_amount(line.tax_base_amount),
-                "Importe": self._l10n_ar_format_settlement_amount(abs(line.balance)),
-            }
-            if move.l10n_latam_document_type_id.code == self._SIFERE_IMPORT_DOCUMENT_CODE:
-                despachos.append(row)
+            if tax.l10n_ar_withholding_payment_type == "customer":
+                ret_lines |= line
+            elif line.l10n_latam_document_type_id.code in self._SIFERE_IMPORT_DOCUMENT_CODES:
+                desp_lines |= line
             else:
-                percepciones.append(row)
+                perc_lines |= line
 
         files = []
-        if retenciones:
+        if ret_lines:
             files.append(
                 {
                     "txt_filename": "SIFERE_Retenciones_Sufridas.txt",
-                    "txt_content": self._l10n_ar_write_settlement_csv(retenciones, common_headers),
+                    "txt_content": self._sifere_txt_content(ret_lines, "ret"),
                 }
             )
-        if percepciones:
+        if perc_lines:
             files.append(
                 {
                     "txt_filename": "SIFERE_Percepciones_Sufridas.txt",
-                    "txt_content": self._l10n_ar_write_settlement_csv(percepciones, common_headers),
+                    "txt_content": self._sifere_txt_content(perc_lines, "perc"),
                 }
             )
-        if despachos:
+        if desp_lines:
             files.append(
                 {
-                    "txt_filename": "SIFERE_Despachos_Importacion.txt",
-                    "txt_content": self._l10n_ar_write_settlement_csv(despachos, common_headers),
+                    "txt_filename": "SIFERE_Despachos_Importacion (no importar).txt",
+                    "txt_content": self._sifere_txt_content(desp_lines, "despachos"),
                 }
             )
         return files
+
+    def _sifere_txt_content(self, move_lines, file_type):
+        lines = []
+        desp_imp = []
+        for line in move_lines.filtered("amount_currency").sorted(key=lambda r: (r.date, r.id)):
+            if file_type == "despachos":
+                # No es un TXT para importar: los despachos de importación se
+                # cargan a mano en SIFERE WEB, igual que hace Enterprise.
+                desp_imp.append(" - " + line.move_id.display_name + "\n")
+                continue
+
+            move = line.move_id
+            internal_type = line.l10n_latam_document_type_id.internal_type
+
+            if not line.partner_id:
+                raise ValidationError(
+                    _('El apunte %s (id %s) del comprobante "%s" (id %s) no tiene contacto asociado.')
+                    % (line.display_name, line.id, move.name, move.id)
+                )
+            line.partner_id.ensure_vat()
+
+            tax = line._get_settlement_tax()
+            content = tax.l10n_ar_state_id.jurisdiction_code or "000"
+            content += line.partner_id.l10n_ar_formatted_vat
+            content += fields.Date.from_string(line.date).strftime("%d/%m/%Y")
+
+            if file_type == "ret":
+                if float_round(line.balance, precision_digits=2) == 0.0:
+                    continue
+                certificado = line._l10n_ar_withholding_data()[0]
+                pos, number = get_pos_and_number(certificado)
+                content += f"{pos:>04s}"
+                content += f"{number:>016s}"
+            else:
+                document_parts = move._l10n_ar_get_document_number_parts(
+                    move.l10n_latam_document_number, move.l10n_latam_document_type_id.code
+                )
+                # Si el punto de venta es de 5 dígitos tomamos los últimos 4
+                # (no hay especificación de cómo proceder en ese caso).
+                pto_venta = "{:0>4d}".format(document_parts["point_of_sale"])[-4:]
+                nro_documento = "{:0>8d}".format(document_parts["invoice_number"])[-8:]
+                content += pto_venta
+                content += nro_documento
+
+            if file_type == "ret":
+                content += "R"
+                content += " "
+            else:
+                doc_type = (
+                    (internal_type in ("invoice", "ticket") and "F")
+                    or (internal_type == "credit_note" and "C")
+                    or (internal_type == "debit_note" and "D")
+                    or (internal_type == "receipt_invoice" and "R")
+                    or "O"
+                )
+                if internal_type == "ticket" and line.balance < 0.0:
+                    doc_type = "C"
+                content += doc_type
+                content += " " if doc_type == "O" else (line.l10n_latam_document_type_id.l10n_ar_letter or " ")
+
+            if file_type == "ret":
+                content += "%020d" % int(re.sub("[^0-9]", "", move.l10n_latam_document_number or "0"))
+            content += format_amount(line.balance, 11, 2, ",")
+            content += "\r\n"
+            lines.append(content)
+
+        if desp_imp:
+            desp_imp.insert(
+                0,
+                "En los registros seleccionados encontramos algunos despachos de "
+                "importación, los mismos deben cargarse a mano. Los comprobantes "
+                "correspondientes son:\n",
+            )
+            return "".join(desp_imp)
+        return "".join(lines)
 
     def sicore_aplicado_files_values(self, move_lines):
         self.ensure_one()
