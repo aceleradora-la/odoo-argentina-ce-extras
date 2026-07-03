@@ -194,6 +194,22 @@ class AccountVatLedger(models.Model):
         "moneda de la compañía usando el tipo de cambio de cada comprobante.",
     )
 
+    def _l10n_ar_reginfo_rate(self, invoice):
+        """Tipo de cambio guardado en el propio comprobante (Campo 18 del
+        Vouchers_*.txt). Usamos ESTE valor -no `res.currency._convert()`,
+        que busca la cotización de la tabla para la fecha del comprobante-
+        porque en AR el tipo de cambio suele cargarse a mano por
+        comprobante y puede no coincidir con la cotización oficial de esa
+        fecha; usar una fuente distinta de la que usó Odoo para calcular
+        `amount_total_signed`/`balance` deja un residuo de descuadre que
+        el Portal IVA de ARCA rechaza. En 17.0 l10n_ar_reports usa
+        l10n_ar_currency_rate (18.0/19.0 lo renombraron a
+        invoice_currency_rate)."""
+        return invoice.l10n_ar_currency_rate
+
+    def _l10n_ar_reginfo_to_company_currency(self, invoice, amount):
+        return invoice.company_currency_id.round(amount * self._l10n_ar_reginfo_rate(invoice))
+
     def _get_tax_row(self, invoice, base, code, tax_amount, impo=False):
         """`invoice._get_vat()` (l10n_ar, Community) siempre devuelve
         BaseImp/Importe en la moneda del comprobante (amount_currency); no
@@ -202,12 +218,8 @@ class AccountVatLedger(models.Model):
         `_get_REGINFO_CV_CBTE`, que resuelve el mismo problema para el
         'Importe Total' del archivo de comprobantes)."""
         if self.libro_iva_currency_mode == "company_currency" and invoice.currency_id != invoice.company_currency_id:
-            base = invoice.currency_id._convert(
-                base, invoice.company_currency_id, invoice.company_id, invoice.date
-            )
-            tax_amount = invoice.currency_id._convert(
-                tax_amount, invoice.company_currency_id, invoice.company_id, invoice.date
-            )
+            base = self._l10n_ar_reginfo_to_company_currency(invoice, base)
+            tax_amount = self._l10n_ar_reginfo_to_company_currency(invoice, tax_amount)
         return super()._get_tax_row(invoice, base, code, tax_amount, impo=impo)
 
     def _l10n_ar_reginfo_amounts(self, inv):
@@ -227,13 +239,14 @@ class AccountVatLedger(models.Model):
         `company_currency` (cambia según la versión de Odoo: existía en
         17.0, se quitó en 18.0/19.0, donde el método ya sólo devuelve
         moneda del comprobante), lo llamamos siempre sin kwargs y
-        convertimos nosotros mismos si corresponde.
+        convertimos nosotros mismos si corresponde, usando el tipo de
+        cambio propio del comprobante (ver _l10n_ar_reginfo_rate).
         """
         amounts = inv._l10n_ar_get_amounts()
         amount_total = (1 if inv.is_inbound() else -1) * inv.amount_total_in_currency_signed
         if self.libro_iva_currency_mode == "company_currency" and inv.currency_id != inv.company_currency_id:
             amounts = {
-                key: inv.currency_id._convert(value, inv.company_currency_id, inv.company_id, inv.date)
+                key: self._l10n_ar_reginfo_to_company_currency(inv, value)
                 for key, value in amounts.items()
             }
             amount_total = (1 if inv.is_inbound() else -1) * inv.amount_total_signed
