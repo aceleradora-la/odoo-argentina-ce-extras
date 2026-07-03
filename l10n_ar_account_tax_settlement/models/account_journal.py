@@ -981,12 +981,22 @@ class AccountJournal(models.Model):
                 # Fecha Emision Comprobante      [10] (dd/mm/yyyy)
                 content += fields.Date.from_string(line.date).strftime("%d/%m/%Y")
                 # Numero Comprobante            [16]
-                content += "%016d" % int(re.sub("[^0-9]", "", move.l10n_latam_document_number))
+                # En stacks sin receiptbook el asiento del pago no tiene número
+                # de documento LATAM: usamos el nombre del pago como fallback.
+                raw_number = move.l10n_latam_document_number or payment.name or ""
+                content += "%016d" % int(re.sub("[^0-9]", "", raw_number) or 0)
                 # Importe del comprobante
                 codop = "1"
                 issue_date = payment.date
-                amount_tot = abs(payment.payment_total)
-                base_amount = line.withholding_id.base_amount
+                # payment_total es de account_payment_pro (ingadhoc); en el
+                # stack oficial usamos el importe en moneda de la compañía.
+                if "payment_total" in payment._fields:
+                    amount_tot = abs(payment.payment_total)
+                elif "amount_company_currency_signed" in payment._fields:
+                    amount_tot = abs(payment.amount_company_currency_signed)
+                else:
+                    amount_tot = abs(payment.amount)
+                base_amount = line._l10n_ar_withholding_data()[1]
 
             elif move.is_invoice():
                 # Codigo del Comprobante         [ 2]
@@ -1125,12 +1135,13 @@ class AccountJournal(models.Model):
 
             content += "\r\n"
 
+        # Nombre con período (mes de los apuntes) para identificar la presentación.
+        period = ""
+        if move_lines:
+            period = "_%s" % fields.Date.from_string(move_lines[0].date).strftime("%Y%m")
         return [
             {
-                "txt_filename": "SICORE Aplicado.txt",
-                # 'txt_filename': 'SICORE_%s_%s_%s.txt' % (
-                #     re.sub(r'[^\d\w]', '', self.company_id.name),
-                #     self.from_date, self.to_date),
+                "txt_filename": "SICORE_Aplicado%s.txt" % period,
                 "txt_content": content,
             }
         ]
