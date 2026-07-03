@@ -1,6 +1,6 @@
 {
     "name": "Padrón ARCA - getPersona_v2 (Community)",
-    "version": "19.0.4.2.0",
+    "version": "19.0.4.2.1",
     "category": "Localization/Argentina",
     "author": "Aceleradora LA",
     "website": "https://github.com/aceleradora-la/odoo-argentina-ce-extras",
