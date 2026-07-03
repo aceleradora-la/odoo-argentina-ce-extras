@@ -51,6 +51,34 @@ class AccountMoveLine(models.Model):
                 else:
                     rec.tax_state = "to_pay"
 
+    def _l10n_ar_withholding_data(self):
+        """(nro_certificado, base_imponible) de la retención asociada a este
+        apunte, compatible con los distintos motores de retenciones:
+
+        1. ingadhoc / forks: campo `withholding_id` en el apunte
+           (l10n_ar.payment.withholding con name y base_amount).
+        2. Oficial `l10n_ar_withholding` (Odoo 17/18/19): líneas de retención
+           colgadas del pago; se matchea por impuesto.
+        3. Fallback: número del pago como certificado y `tax_base_amount`
+           del propio apunte como base.
+        """
+        self.ensure_one()
+        if "withholding_id" in self._fields and self.withholding_id:
+            return self.withholding_id.name or "", self.withholding_id.base_amount
+
+        payment = self.payment_id
+        if payment:
+            for holder_field in ("l10n_ar_withholding_line_ids", "l10n_ar_withholding_ids"):
+                if holder_field in payment._fields:
+                    wh = payment[holder_field].filtered(
+                        lambda w: w.tax_id == self.tax_line_id
+                    )[:1]
+                    if wh:
+                        number = wh.name if "name" in wh._fields and wh.name else payment.name or ""
+                        return number, wh.base_amount
+
+        return (self.payment_id.name or "" if self.payment_id else ""), self.tax_base_amount
+
     def _get_settlement_tax(self, date=None):
         """Método puente para poder usar l10n_ar_tax_settlement_backward_comp
         Deprecar este método cuando se deprecie con l10n_ar_tax_settlement_backward_comp.
