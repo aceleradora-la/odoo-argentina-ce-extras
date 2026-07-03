@@ -1,7 +1,9 @@
 # from odoo.tools.misc import formatLang
 # from odoo.tools import DEFAULT_SERVER_DATE_FORMAT
+import io
 import re
 import unicodedata
+from csv import DictWriter
 
 from odoo import _, fields, models
 from odoo.exceptions import RedirectWarning, ValidationError
@@ -946,6 +948,134 @@ class AccountJournal(models.Model):
                 "txt_content": ret,
             },
         ]
+
+    ###################################
+    # SIFERE (IIBB sufrido - Convenio Multilateral)
+    ###################################
+
+    # Código de tipo de comprobante AFIP para Despacho de Importación.
+    _SIFERE_IMPORT_DOCUMENT_CODE = "66"
+
+    def _sifere_write_csv(self, rows, headers):
+        """Arma un CSV ';' delimitado, mismo criterio que l10n_ar_vat_book_wizard
+        (DictWriter, separador de decimales ',' vía _sifere_format_amount)."""
+        fp = io.StringIO()
+        writer = DictWriter(fp, fieldnames=headers, delimiter=";", lineterminator="\r\n")
+        writer.writeheader()
+        writer.writerows(rows)
+        return fp.getvalue()
+
+    @staticmethod
+    def _sifere_format_amount(amount):
+        return ("%.2f" % (amount or 0.0)).replace(".", ",")
+
+    def iibb_sufrido_files_values(self, move_lines):
+        """Genera los TXT (CSV ';') de IIBB sufrido para SIFERE (Comisión
+        Arbitral - Convenio Multilateral):
+          * Retenciones sufridas: apuntes de pagos cobrados con retención de
+            IIBB aplicada por el cliente (line.payment_id presente).
+          * Percepciones sufridas: apuntes de impuesto en facturas de compra
+            (percepción de IIBB aplicada por el proveedor).
+          * Despachos de importación: percepciones sobre comprobantes de
+            Despacho de Importación (código AFIP 66).
+
+        Los apuntes a incluir ya vienen filtrados por los tags configurados
+        en `settlement_account_tag_ids` del diario (no se decide acá qué
+        líneas son de IIBB sufrido, eso lo define la configuración del tag).
+
+        NOTA: formato CSV con columnas explícitas, pensado para ser fácil de
+        validar/ajustar contra el TXT de referencia (por ejemplo comparando
+        con la exportación de un Odoo Enterprise) antes de usar en producción.
+        """
+        self.ensure_one()
+
+        common_headers = [
+            "CUIT Agente",
+            "Fecha",
+            "Comprobante",
+            "Jurisdicción",
+            "Código Régimen",
+            "Base Imponible",
+            "Importe",
+        ]
+
+        retenciones, percepciones, despachos = [], [], []
+
+        for line in move_lines.sorted(key=lambda r: (r.date, r.id)):
+            partner = line.partner_id
+            if not partner.vat:
+                raise ValidationError(
+                    _('El partner "%s" (id %s) no tiene CUIT/CUIL establecido, requerido para SIFERE.')
+                    % (partner.name, partner.id)
+                )
+
+            tax = line._get_settlement_tax()
+            jurisdiccion = tax.tax_group_id.name or ""
+            codigo_regimen = self._get_tax_code(tax, line) or ""
+
+            if line.payment_id:
+                # Retención sufrida: certificado/base vía helper multi-motor.
+                certificado, base_amount = line._l10n_ar_withholding_data()
+                retenciones.append(
+                    {
+                        "CUIT Agente": partner.ensure_vat(),
+                        "Fecha": fields.Date.from_string(line.payment_id.date).strftime("%d/%m/%Y"),
+                        "Comprobante": certificado,
+                        "Jurisdicción": jurisdiccion,
+                        "Código Régimen": codigo_regimen,
+                        "Base Imponible": self._sifere_format_amount(base_amount),
+                        "Importe": self._sifere_format_amount(abs(line.balance)),
+                    }
+                )
+                continue
+
+            move = line.move_id
+            if not move.is_invoice() or move.move_type not in ("in_invoice", "in_refund"):
+                raise ValidationError(
+                    _(
+                        "El apunte %s (id %s) no proviene de un pago ni de una factura "
+                        "de compra: no se puede incluir en SIFERE (IIBB sufrido)."
+                    )
+                    % (line.display_name, line.id)
+                )
+
+            row = {
+                "CUIT Agente": partner.ensure_vat(),
+                "Fecha": fields.Date.from_string(move.invoice_date).strftime("%d/%m/%Y"),
+                "Comprobante": re.sub("[^0-9]", "", move.l10n_latam_document_number or ""),
+                "Jurisdicción": jurisdiccion,
+                "Código Régimen": codigo_regimen,
+                "Base Imponible": self._sifere_format_amount(line.tax_base_amount),
+                "Importe": self._sifere_format_amount(abs(line.balance)),
+            }
+            if move.l10n_latam_document_type_id.code == self._SIFERE_IMPORT_DOCUMENT_CODE:
+                despachos.append(row)
+            else:
+                percepciones.append(row)
+
+        files = []
+        if retenciones:
+            files.append(
+                {
+                    "txt_filename": "SIFERE_Retenciones_Sufridas.txt",
+                    "txt_content": self._sifere_write_csv(retenciones, common_headers),
+                }
+            )
+        if percepciones:
+            files.append(
+                {
+                    "txt_filename": "SIFERE_Percepciones_Sufridas.txt",
+                    "txt_content": self._sifere_write_csv(percepciones, common_headers),
+                }
+            )
+        if despachos:
+            files.append(
+                {
+                    "txt_filename": "SIFERE_Despachos_Importacion.txt",
+                    "txt_content": self._sifere_write_csv(despachos, common_headers),
+                }
+            )
+        return files
 
     def sicore_aplicado_files_values(self, move_lines):
         self.ensure_one()
