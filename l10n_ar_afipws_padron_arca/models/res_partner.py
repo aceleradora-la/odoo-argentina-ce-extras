@@ -81,7 +81,14 @@ class ResPartner(models.Model):
         self.ensure_one()
         vat = self.ensure_vat()
 
-        company = self.env.user.company_id
+        # `self.env.user.company_id` es la compañía POR DEFECTO del usuario
+        # (fija en su perfil) y NO cambia al usar el selector multi-compañía;
+        # `self.env.company` sí refleja la compañía activa en la sesión. Con
+        # user.company_id, si el usuario está parado en una compañía hija con
+        # certificado propio pero su compañía por defecto es la matriz (sin
+        # certificado confirmado), el WS fallaba con "Certificado no
+        # confirmado" para la matriz en vez de usar la compañía correcta.
+        company = self.env.company
         # getPersona_v2 corre sobre el servicio de Constancia de Inscripción:
         # el token WSAA debe pedirse para ese servicio (no para ws_sr_padron_a5),
         # de lo contrario AFIP responde "Computador no autorizado".
