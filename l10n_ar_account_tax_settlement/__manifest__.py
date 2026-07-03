@@ -37,8 +37,8 @@
         "data/account_tag_data.xml",
         "views/inflation_adjustmen_index_view.xml",
         "views/account_journal_view.xml",
-        "views/account_move_line_view.xml",
         "wizards/download_files_wizard_view.xml",
+        "views/account_move_line_view.xml",
         "security/ir.model.access.csv",  # Load after wizards so models are registered
     ],
     "demo": [],
