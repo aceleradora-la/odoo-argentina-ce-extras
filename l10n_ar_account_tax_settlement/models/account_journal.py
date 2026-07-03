@@ -89,8 +89,20 @@ class AccountJournal(models.Model):
                     # Intentar l10n_ar_code si existe
                     if hasattr(withholding_tax, 'l10n_ar_code') and withholding_tax.l10n_ar_code:
                         return withholding_tax.l10n_ar_code
-        
+
         return False
+
+    def _get_tax_jurisdiction_code(self, tax):
+        """Código de jurisdicción (Convenio Multilateral) del impuesto, vía
+        `l10n_ar_state_id` (aportado por l10n_ar_withholding + l10n_ar_ux).
+        Ese módulo puede no estar instalado, o alguno de sus campos puede no
+        existir según la versión: usamos hasattr para no romper con
+        AttributeError, igual que _get_tax_code. Devuelve False si no hay
+        dato disponible."""
+        state = getattr(tax, "l10n_ar_state_id", False)
+        if not state:
+            return False
+        return getattr(state, "jurisdiction_code", False) or False
 
     settlement_tax = fields.Selection(
         [
@@ -572,21 +584,22 @@ class AccountJournal(models.Model):
                 # 9: Monto retenido
                 content.append(format_amount(-line.balance, 12, 2, "."))
                 # 10: Código de régimen (según tabla de la jurisdicción)
-                if not tax.l10n_ar_code:
+                codigo_regimen = self._get_tax_code(tax, line)
+                if not codigo_regimen:
                     raise ValidationError(
-                        _("No hay código de régimen (código ARCA 'l10n_ar_code') configurado para el impuesto '%s'.")
-                        % tax.name
+                        _("No hay código de régimen configurado para el impuesto '%s'.") % tax.name
                     )
-                content.append(tax.l10n_ar_code)
+                content.append(codigo_regimen)
                 # 11: Jurisdicción (código Convenio Multilateral)
-                if not tax.l10n_ar_state_id.jurisdiction_code:
+                jurisdiction_code = self._get_tax_jurisdiction_code(tax)
+                if not jurisdiction_code:
                     raise ValidationError(
                         _('El impuesto "%s" no tiene jurisdicción configurada, o la jurisdicción no tiene código.')
                         % tax.name
                     )
-                content.append(tax.l10n_ar_state_id.jurisdiction_code)
+                content.append(jurisdiction_code)
 
-                if tax.l10n_ar_state_id.jurisdiction_code in ("904", "914"):  # Córdoba
+                if jurisdiction_code in ("904", "914"):  # Córdoba
                     # 12: Tipo de operación (1-Efectuada, 2-Anulada, 3-Omitida)
                     content.append("2" if internal_type == "supplier_payment" else "1")
                     # 13: Fecha de emisión de constancia
@@ -641,21 +654,22 @@ class AccountJournal(models.Model):
                 # 9: Monto percibido
                 content.append(format_amount(abs(line.balance), 12, 2, "."))
                 # 10: Código de régimen (según tabla de la jurisdicción)
-                if not tax.l10n_ar_code:
+                codigo_regimen = self._get_tax_code(tax, line)
+                if not codigo_regimen:
                     raise ValidationError(
-                        _("No hay código de régimen (código ARCA 'l10n_ar_code') configurado para el impuesto '%s'.")
-                        % tax.name
+                        _("No hay código de régimen configurado para el impuesto '%s'.") % tax.name
                     )
-                content.append(tax.l10n_ar_code)
+                content.append(codigo_regimen)
                 # 11: Jurisdicción (código Convenio Multilateral)
-                if not tax.l10n_ar_state_id.jurisdiction_code:
+                jurisdiction_code = self._get_tax_jurisdiction_code(tax)
+                if not jurisdiction_code:
                     raise ValidationError(
                         _('El impuesto "%s" no tiene jurisdicción configurada, o la jurisdicción no tiene código.')
                         % tax.name
                     )
-                content.append(tax.l10n_ar_state_id.jurisdiction_code)
+                content.append(jurisdiction_code)
 
-                if tax.l10n_ar_state_id.jurisdiction_code in ("904", "914"):  # Córdoba
+                if jurisdiction_code in ("904", "914"):  # Córdoba
                     # 12: Tipo de operación (1-Efectuada, 2-Anulada, 3-Omitida, 4-Informativa)
                     content.append("2" if internal_type == "credit_note" else "1")
                     # 13: Número de constancia original (solo anulaciones)
@@ -670,15 +684,16 @@ class AccountJournal(models.Model):
         return "".join(lines)
 
     def retenciones_iva_files_values(self, move_lines):
-        """TXT de Retenciones/Percepciones de IVA sufridas, portado 1:1
-        desde l10n_ar_account_reports (Enterprise, ingadhoc):
+        """TXT de Retenciones/Percepciones de IVA sufridas, portado desde
+        l10n_ar_account_reports (Enterprise, ingadhoc):
         https://github.com/ingadhoc/odoo-argentina-ee/blob/47fbbde/l10n_ar_account_reports/models/l10n_ar_vat_ret_perc_sufrido.py
 
-        Clasificación (EE usa 2 dominios/botones separados; acá recibimos un
-        único `move_lines` ya filtrado por los tags del diario y lo separamos
-        igual): retención sufrida si l10n_ar_withholding_payment_type ==
-        'customer' (pago cobrado); percepción sufrida si type_tax_use ==
-        'purchase' con código de tributo AFIP '06' (percepción IVA de compra).
+        EE genera 2 archivos separados (botones "Retenciones IVA sufridas" /
+        "Percepciones IVA sufridas": son 2 casilleros distintos en el Portal
+        ARCA). Acá recibimos un único `move_lines` ya filtrado por los tags
+        del diario y lo separamos igual: retención sufrida si
+        l10n_ar_withholding_payment_type == 'customer' (pago cobrado);
+        percepción sufrida si no (factura de compra).
         """
         self.ensure_one()
 
@@ -691,45 +706,45 @@ class AccountJournal(models.Model):
             else:
                 perc_lines |= line
 
-        content = ""
+        ret_content = ""
         for line in ret_lines.filtered("amount_currency").sorted(key=lambda r: (r.date, r.id)):
             payment = line.payment_id
             certificado, _base = line._l10n_ar_withholding_data()
             withholding_tax = line._get_settlement_tax()
-            codigo_regimen = withholding_tax.l10n_ar_code
+            codigo_regimen = self._get_tax_code(withholding_tax, line)
             if not codigo_regimen or len(codigo_regimen) < 3:
                 raise ValidationError(
-                    _("El impuesto '%s' necesita un código de régimen (l10n_ar_code) de al menos 3 dígitos.")
+                    _("El impuesto '%s' necesita un código de régimen de al menos 3 dígitos.")
                     % withholding_tax.name
                 )
-            content += codigo_regimen[:3]
-            content += payment.partner_id.ensure_vat()
-            content += fields.Date.from_string(payment.date).strftime("%d/%m/%Y")
-            content += re.sub(r"[^0-9\.]", "", certificado or "").ljust(16, "0")
-            content += "%016.2f" % line.balance
-            content += "\r\n"
+            ret_content += codigo_regimen[:3]
+            ret_content += payment.partner_id.ensure_vat()
+            ret_content += fields.Date.from_string(payment.date).strftime("%d/%m/%Y")
+            ret_content += re.sub(r"[^0-9\.]", "", certificado or "").ljust(16, "0")
+            ret_content += "%016.2f" % line.balance
+            ret_content += "\r\n"
 
+        perc_content = ""
         for line in perc_lines.filtered("amount_currency").sorted(key=lambda r: (r.date, r.id)):
             tax = line._get_settlement_tax()
-            codigo_regimen = tax.l10n_ar_code
+            codigo_regimen = self._get_tax_code(tax, line)
             if not codigo_regimen or len(codigo_regimen) < 3:
                 raise ValidationError(
-                    _("El impuesto '%s' necesita un código de régimen (l10n_ar_code) de al menos 3 dígitos.")
-                    % tax.name
+                    _("El impuesto '%s' necesita un código de régimen de al menos 3 dígitos.") % tax.name
                 )
-            content += codigo_regimen[:3]
-            content += line.move_id.partner_id.ensure_vat()
-            content += fields.Date.from_string(line.move_id.invoice_date).strftime("%d/%m/%Y")
-            content += (line.move_id.l10n_latam_document_number or "").ljust(16)
-            content += "%16.2f" % line.balance
-            content += "\r\n"
+            perc_content += codigo_regimen[:3]
+            perc_content += line.move_id.partner_id.ensure_vat()
+            perc_content += fields.Date.from_string(line.move_id.invoice_date).strftime("%d/%m/%Y")
+            perc_content += (line.move_id.l10n_latam_document_number or "").ljust(16)
+            perc_content += "%16.2f" % line.balance
+            perc_content += "\r\n"
 
-        return [
-            {
-                "txt_filename": "Retenciones_Percepciones_IVA_Sufridas.txt",
-                "txt_content": content,
-            }
-        ]
+        files = []
+        if ret_content:
+            files.append({"txt_filename": "Retenciones_IVA_Sufridas.txt", "txt_content": ret_content})
+        if perc_content:
+            files.append({"txt_filename": "Percepciones_IVA_Sufridas.txt", "txt_content": perc_content})
+        return files
 
     def iibb_aplicado_agip_files_values(self, move_lines):  # noqa: C901
         """Ver readme del modulo para descripcion del formato. Tambien
@@ -1257,7 +1272,7 @@ class AccountJournal(models.Model):
             line.partner_id.ensure_vat()
 
             tax = line._get_settlement_tax()
-            content = tax.l10n_ar_state_id.jurisdiction_code or "000"
+            content = self._get_tax_jurisdiction_code(tax) or "000"
             content += line.partner_id.l10n_ar_formatted_vat
             content += fields.Date.from_string(line.date).strftime("%d/%m/%Y")
 
