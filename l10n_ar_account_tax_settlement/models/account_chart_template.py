@@ -79,10 +79,23 @@ class AccountChartTemplate(models.AbstractModel):
                     "Liquidación IIBB Aplicado",
                     "IB_AP",
                     "allow_per_line",
-                    False,  # iibb_aplicado, debe elegirse según provincia
+                    False,  # iibb_aplicado (AGIP/ARBA/API/Mendoza/SIRCAR), debe elegirse según provincia
                     self.env.ref("l10n_ar.par_iibb_pagar", raise_if_not_found=False),
                     "ri_retencion_iibb_a_pagar",
                     self.env.ref("l10n_ar_ux.tag_ret_perc_iibb_aplicada", raise_if_not_found=False),
+                ),
+                (
+                    "Liquidación IVA Ret/Perc Sufridas",
+                    "IVA_SUF",
+                    "allow_per_line",
+                    "retenciones_iva",
+                    False,  # no hay un agente de retención único: es crédito propio, no una deuda a un tercero
+                    # Reutiliza la cuenta de IVA a favor/saldo técnico: retenciones y
+                    # percepciones de IVA sufridas son crédito fiscal, igual que el
+                    # saldo a favor del cierre de IVA. Cambiar si se prefiere una
+                    # cuenta dedicada.
+                    "ri_iva_saldo_a_pagar",
+                    self.env.ref("l10n_ar_account_tax_settlement.tag_ret_perc_iva_sufrida", raise_if_not_found=False),
                 ),
             ]
 

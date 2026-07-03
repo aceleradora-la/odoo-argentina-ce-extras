@@ -19,7 +19,7 @@
 ##############################################################################
 {
     "name": "Tax Settlements For Argentina (Community)",
-    "version": "17.0.1.4.0",
+    "version": "17.0.1.5.0",
     "category": "Accounting",
     "author": "ADHOC SA, Aceleradora-Latam",
     "website": "www.adhoc.com.ar",
@@ -34,6 +34,7 @@
     ],
     "data": [
         "data/inflation_adjustment_index.xml",
+        "data/account_tag_data.xml",
         "views/inflation_adjustmen_index_view.xml",
         "views/account_journal_view.xml",
         "views/account_move_line_view.xml",
