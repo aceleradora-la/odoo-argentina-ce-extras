@@ -179,23 +179,29 @@ class AccountVatLedger(models.Model):
             },
         }
 
+    libro_iva_currency_mode = fields.Selection(
+        [
+            ("invoice_currency", "Moneda del comprobante"),
+            ("company_currency", "Pesos (moneda de la compañía)"),
+        ],
+        string="Moneda del TXT",
+        default="invoice_currency",
+        help="Moneda en la que se informan los importes del TXT del Libro "
+        "IVA Digital (RG 3685). Debe coincidir con la opción elegida al "
+        "importar en el Portal IVA de ARCA ('Moneda y tipo de cambio'). "
+        "'Moneda del comprobante' es el criterio original de la RG 3685 y "
+        "no requiere conversión; 'Pesos' convierte todos los importes a la "
+        "moneda de la compañía usando el tipo de cambio de cada comprobante.",
+    )
+
     def _get_tax_row(self, invoice, base, code, tax_amount, impo=False):
-        """Corrige un bug de l10n_ar_reports en el TXT del Libro IVA Digital
-        (RG 3685) para comprobantes en moneda extranjera.
-
-        `invoice._get_vat()` (l10n_ar, Community) devuelve BaseImp/Importe
-        en la MONEDA DEL COMPROBANTE (amount_currency), pero el "Importe
-        Total" del voucher (`_get_REGINFO_CV_CBTE`, archivo Vouchers_*.txt)
-        usa `amount_total_signed`, que SIEMPRE está en moneda de compañía.
-        Para facturas en USD/otra moneda esto desajusta el archivo
-        Alicuots_*.txt exactamente por el tipo de cambio del comprobante, y
-        el Portal IVA de AFIP lo rechaza con:
-        "El Importe Total (X) no coincide con la suma de los demás montos (Y)".
-
-        Convertimos a moneda de compañía antes de armar la fila; si el
-        comprobante ya está en moneda de compañía, es un no-op.
-        """
-        if invoice.currency_id != invoice.company_currency_id:
+        """`invoice._get_vat()` (l10n_ar, Community) siempre devuelve
+        BaseImp/Importe en la moneda del comprobante (amount_currency); no
+        tiene opción de moneda. Si el modo elegido es 'Pesos', convertimos acá
+        antes de armar la fila (ver `libro_iva_currency_mode` y
+        `_get_REGINFO_CV_CBTE`, que resuelve el mismo problema para el
+        'Importe Total' del archivo de comprobantes)."""
+        if self.libro_iva_currency_mode == "company_currency" and invoice.currency_id != invoice.company_currency_id:
             base = invoice.currency_id._convert(
                 base, invoice.company_currency_id, invoice.company_id, invoice.date
             )
@@ -203,6 +209,210 @@ class AccountVatLedger(models.Model):
                 tax_amount, invoice.company_currency_id, invoice.company_id, invoice.date
             )
         return super()._get_tax_row(invoice, base, code, tax_amount, impo=impo)
+
+    def _l10n_ar_reginfo_amounts(self, inv):
+        """Monto total y desglose de impuestos del comprobante, en la moneda
+        elegida por `libro_iva_currency_mode`.
+
+        `l10n_ar_reports._get_REGINFO_CV_CBTE` (Vouchers_*.txt) hardcodea
+        `inv._l10n_ar_get_amounts(company_currency=True)` y
+        `inv.amount_total_signed`: SIEMPRE en pesos, sin dar opción, mientras
+        que `_get_vat()` (Alicuots_*.txt) siempre está en moneda del
+        comprobante. Para comprobantes en moneda extranjera, el TXT queda
+        con el "Importe Total" en pesos y las alícuotas en la moneda
+        original: el Portal IVA de ARCA lo rechaza con
+        "El Importe Total (X) no coincide con la suma de los demás montos (Y)".
+
+        Para no depender de si `_l10n_ar_get_amounts` acepta o no el kwarg
+        `company_currency` (cambia según la versión de Odoo: existía en
+        17.0, se quitó en 18.0/19.0, donde el método ya sólo devuelve
+        moneda del comprobante), lo llamamos siempre sin kwargs y
+        convertimos nosotros mismos si corresponde.
+        """
+        amounts = inv._l10n_ar_get_amounts()
+        amount_total = (1 if inv.is_inbound() else -1) * inv.amount_total_in_currency_signed
+        if self.libro_iva_currency_mode == "company_currency" and inv.currency_id != inv.company_currency_id:
+            amounts = {
+                key: inv.currency_id._convert(value, inv.company_currency_id, inv.company_id, inv.date)
+                for key, value in amounts.items()
+            }
+            amount_total = (1 if inv.is_inbound() else -1) * inv.amount_total_signed
+        return amounts, amount_total
+
+    def _get_REGINFO_CV_CBTE(self, alicuotas):
+        """Override completo de l10n_ar_reports (19.0/18.0, ver
+        _l10n_ar_reginfo_amounts): única diferencia con el original es que
+        `amounts`/`amount_total` salen de `_l10n_ar_reginfo_amounts` (según
+        `libro_iva_currency_mode`) en vez de estar hardcodeados a pesos.
+        Resto del método sin cambios respecto a l10n_ar_reports."""
+        self.ensure_one()
+        res = []
+        invoices = self._get_txt_invoices()
+        for inv in invoices:
+            # si no existe la factura en alicuotas es porque no tienen ninguna
+            cant_alicuotas = len(alicuotas.get(inv))
+
+            currency_rate = inv.invoice_currency_rate
+            currency_code = inv.currency_id.l10n_ar_afip_code
+
+            invoice_number, pos_number = self._get_pos_and_invoice_invoice_number(inv)
+            doc_code, doc_number = self._get_partner_document_code_and_number(inv.partner_id)
+
+            amounts, amount_total = self._l10n_ar_reginfo_amounts(inv)
+            vat_amount = amounts["vat_amount"]
+            vat_exempt_base_amount = amounts["vat_exempt_base_amount"]
+            vat_untaxed_base_amount = amounts["vat_untaxed_base_amount"]
+            other_taxes_amount = amounts["other_taxes_amount"]
+            vat_perc_amount = amounts["vat_perc_amount"]
+            iibb_perc_amount = amounts["iibb_perc_amount"]
+            mun_perc_amount = amounts["mun_perc_amount"]
+            intern_tax_amount = amounts["intern_tax_amount"]
+            perc_imp_nacionales_amount = amounts["profits_perc_amount"] + amounts["other_perc_amount"]
+
+            if vat_exempt_base_amount:
+                # operacion con zona franca
+                if inv.partner_id.l10n_ar_afip_responsibility_type_id.code == "10":
+                    codigo_operacion = "Z"
+                # expo al exterior
+                elif inv.l10n_latam_document_type_id.l10n_ar_letter == "E":
+                    codigo_operacion = "X"
+                # operacion exenta
+                else:
+                    codigo_operacion = "E"
+            # despacho de importacion
+            elif inv.l10n_latam_document_type_id.code == "66":
+                codigo_operacion = "E"
+            # operacion no gravada
+            elif vat_untaxed_base_amount:
+                codigo_operacion = "N"
+            else:
+                codigo_operacion = " "
+
+            row = [
+                # Campo 1: Fecha de comprobante
+                inv.invoice_date.strftime("%Y%m%d"),
+                # Campo 2: Tipo de Comprobante.
+                f"{int(inv.l10n_latam_document_type_id.code):0>3d}",
+                # Campo 3: Punto de Venta
+                pos_number,
+                # Campo 4: Número de Comprobante
+                invoice_number,
+            ]
+
+            if self.type == "sale":
+                # Campo 5: Número de Comprobante Hasta.
+                row.append(invoice_number)
+            else:
+                # Campo 5: Despacho de importación
+                if inv.l10n_latam_document_type_id.code == "66":
+                    row.append((inv.l10n_latam_document_number).rjust(16, "0"))
+                else:
+                    row.append("".rjust(16, " "))
+
+            row += [
+                # Campo 6: Código de documento del comprador.
+                doc_code,
+                # Campo 7: Número de Identificación del comprador
+                doc_number,
+                # Campo 8: Apellido y Nombre del comprador.
+                inv.commercial_partner_id.name.ljust(30, " ")[:30],
+                # Campo 9: Importe Total de la Operación.
+                self.format_amount(amount_total),
+                # Campo 10: Importe total de conceptos que no integran el precio neto gravado
+                self.format_amount(vat_untaxed_base_amount),
+            ]
+
+            if self.type == "sale":
+                row += [
+                    # Campo 11: Percepción a no categorizados
+                    self.format_amount(0.0),
+                    # Campo 12: Importe de operaciones exentas
+                    self.format_amount(vat_exempt_base_amount),
+                    # Campo 13: Importe de percepciones o pagos a cuenta de impuestos Nacionales
+                    self.format_amount(perc_imp_nacionales_amount + vat_perc_amount),
+                ]
+            else:
+                row += [
+                    # Campo 11: Importe de operaciones exentas
+                    self.format_amount(vat_exempt_base_amount),
+                    # Campo 12: Importe de percepciones o pagos a cuenta del Impuesto al Valor Agregado
+                    self.format_amount(vat_perc_amount),
+                    # Campo 13: Importe de percepciones o pagos a cuenta otros impuestos nacionales
+                    self.format_amount(perc_imp_nacionales_amount),
+                ]
+
+            row += [
+                # Campo 14: Importe de percepciones de ingresos brutos
+                self.format_amount(iibb_perc_amount),
+                # Campo 15: Importe de percepciones de impuestos municipales
+                self.format_amount(mun_perc_amount),
+                # Campo 16: Importe de impuestos internos
+                self.format_amount(intern_tax_amount),
+                # Campo 17: Código de Moneda
+                str(currency_code),
+                # Campo 18: Tipo de Cambio
+                self.format_amount(currency_rate, padding=10, decimals=6),
+                # Campo 19: Cantidad de alícuotas de IVA
+                str(cant_alicuotas),
+                # Campo 20: Código de operación.
+                codigo_operacion,
+            ]
+
+            if self.type == "sale":
+                row += [
+                    # Campo 21: Otros Tributos
+                    self.format_amount(other_taxes_amount),
+                    # Campo 22: vencimiento comprobante
+                    (
+                        inv.l10n_latam_document_type_id.code
+                        in [
+                            "19", "20", "21", "16", "55", "81", "82", "83",
+                            "110", "111", "112", "113", "114", "115", "116",
+                            "117", "118", "119", "120", "201", "202", "203",
+                            "206", "207", "208", "211", "212", "213",
+                        ]
+                        and "00000000"
+                        or inv.invoice_date_due.strftime("%Y%m%d")
+                    ),
+                ]
+            else:
+                # Campo 21: Crédito Fiscal Computable
+                if self.prorate_tax_credit:
+                    if self.prorate_type == "global":
+                        row.append(self.format_amount(0))
+                    else:
+                        raise ValidationError(
+                            _(
+                                "Para utilizar el prorrateo por comprobante:\n"
+                                '1) Exporte los archivos sin la opción "Proratear '
+                                'Crédito de Impuestos"\n2) Importe los mismos '
+                                "en el aplicativo\n3) En el aplicativo de afip, "
+                                "comprobante por comprobante, indique el valor "
+                                'correspondiente en el campo "Crédito Fiscal '
+                                'Computable"'
+                            )
+                        )
+                else:
+                    row.append(self.format_amount(vat_amount))
+
+                liquido_type = inv.l10n_latam_document_type_id.code in [
+                    "033", "058", "059", "060", "063",
+                ]
+                row += [
+                    # Campo 22: Otros Tributos
+                    self.format_amount(other_taxes_amount),
+                    # Campo 23: CUIT Emisor / Corredor
+                    self.format_amount(
+                        liquido_type and inv.company_id.partner_id.ensure_vat() or 0,
+                        padding=11,
+                    ),
+                    # Campo 24: Denominación Emisor / Corredor
+                    (liquido_type and inv.company_id.name or "").ljust(30, " ")[:30],
+                    # Campo 25: IVA Comisión
+                    self.format_amount(0),
+                ]
+            res.append("".join(row))
+        self.REGINFO_CV_CBTE = "\r\n".join(res)
 
     def compute_iva_simple_data(self):
         """Genera el ZIP de IVA Simple delegando en el wizard existente."""

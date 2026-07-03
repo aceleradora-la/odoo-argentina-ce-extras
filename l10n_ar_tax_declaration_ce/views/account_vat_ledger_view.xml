@@ -23,6 +23,9 @@
                         class="btn-primary"
                         invisible="tax_closing_payment_state != 'to_pay'"/>
             </xpath>
+            <xpath expr="//field[@name='prorate_type']" position="after">
+                <field name="libro_iva_currency_mode"/>
+            </xpath>
             <xpath expr="//page[@name='txt_files']" position="after">
                 <page string="IVA Simple (ZIP)" name="iva_simple">
                     <button name="compute_iva_simple_data"
