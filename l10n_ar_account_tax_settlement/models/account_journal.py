@@ -1379,13 +1379,21 @@ class AccountJournal(models.Model):
             content += "%014.2f" % abs(line.balance)
 
             # Porcentaje de Exclusion        [ 6]
-            porcentaje_exclusion = getattr(tax, 'porcentaje_exclusion', 0.0) or 0.0
-            content += "%06.2f" % porcentaje_exclusion
+            # AFIP/ARCA no expone este dato vía las APIs disponibles; el
+            # propio Odoo Enterprise lo hardcodea a "000.00" siempre (ver
+            # sicore_report.py de l10n_ar_account_reports). No es un campo
+            # real de account.tax: por eso lo fijamos igual, en vez de leer
+            # un atributo que nunca existe.
+            content += "000.00"
 
             # Fecha Emision Boletin          [10] (dd/mm/yyyy)
             content += fields.Date.from_string(issue_date).strftime("%d/%m/%Y")
 
             # Tipo Documento Retenido        [ 2]
+            # Código AFIP dinámico del tipo de documento del partner (80=CUIT,
+            # 86=CUIL, 96=DNI, etc.), ya validado como presente al inicio del
+            # loop. Antes se hardcodeaba "3", que no es un código válido de
+            # esta tabla (ver sicore_report.py de l10n_ar_account_reports).
             content += "%02d" % int(partner.l10n_latam_identification_type_id.l10n_ar_afip_code)
 
             # Numero Documento Retenido      [20]
