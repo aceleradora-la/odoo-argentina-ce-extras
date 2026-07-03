@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Tag propio para el diario "Liquidación IVA Ret/Perc Sufridas": el
+         usuario debe asignarlo a las líneas de reparto de los impuestos de
+         retención (l10n_ar_withholding_payment_type='customer') y percepción
+         de IVA sufridas (type_tax_use='purchase', tributo AFIP '06') para que
+         el dashboard de liquidación las detecte. -->
+    <record id="tag_ret_perc_iva_sufrida" model="account.account.tag">
+        <field name="name">Ret/Perc IVA Sufridas</field>
+        <field name="applicability">taxes</field>
+        <field name="country_id" ref="base.ar"/>
+    </record>
+</odoo>
