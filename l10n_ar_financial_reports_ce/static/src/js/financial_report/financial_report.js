@@ -38,6 +38,8 @@ export class ArFinancialReport extends Component {
             lines: {},      // group_key -> [line]
             loadingGroups: {},
             hiddenCols: {},
+            showColumnsMenu: false,
+            menuPos: { top: 0, left: 0 },
         });
         onWillStart(async () => {
             try {
@@ -131,6 +133,26 @@ export class ArFinancialReport extends Component {
     }
 
     // --- columnas -------------------------------------------------------
+    toggleColumnsMenu(ev) {
+        if (this.state.showColumnsMenu) {
+            this.state.showColumnsMenu = false;
+            return;
+        }
+        // Menú con position:fixed: se ubica bajo el botón y no lo recorta
+        // el overflow de la toolbar.
+        const rect = ev.currentTarget.getBoundingClientRect();
+        const width = 260;
+        this.state.menuPos = {
+            top: Math.round(rect.bottom + 4),
+            left: Math.round(Math.max(8,
+                Math.min(rect.left, window.innerWidth - width - 8))),
+        };
+        this.state.showColumnsMenu = true;
+    }
+    closeColumnsMenu() {
+        this.state.showColumnsMenu = false;
+    }
+
     toggleColumn(key) {
         this.state.hiddenCols[key] = !this.state.hiddenCols[key];
     }

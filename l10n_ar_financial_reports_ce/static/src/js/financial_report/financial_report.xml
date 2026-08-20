@@ -59,37 +59,10 @@
                             <option value="posted" t-att-selected="header.target_move === 'posted'">Asientos registrados</option>
                             <option value="all" t-att-selected="header.target_move === 'all'">Todos los asientos</option>
                         </select>
-                        <!-- Columnas -->
-                        <div class="dropdown">
-                            <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button"
-                                    data-bs-toggle="dropdown" data-bs-auto-close="outside">Columnas</button>
-                            <ul class="dropdown-menu p-2" style="max-height: 320px; overflow-y: auto; min-width: 240px;">
-                                <li><a class="dropdown-item" href="#" t-on-click.prevent="showAllColumns">Mostrar todas</a></li>
-                                <li><hr class="dropdown-divider"/></li>
-                                <t t-foreach="header.columns" t-as="col" t-key="col.key">
-                                    <li>
-                                        <div class="dropdown-item form-check mb-0">
-                                            <input type="checkbox" class="form-check-input"
-                                                   t-att-id="'arfr_col_' + col.key"
-                                                   t-att-checked="!state.hiddenCols[col.key]"
-                                                   t-on-change="() => this.toggleColumn(col.key)"/>
-                                            <label class="form-check-label" t-att-for="'arfr_col_' + col.key">
-                                                <t t-esc="col.label"/>
-                                            </label>
-                                        </div>
-                                    </li>
-                                </t>
-                                <li><hr class="dropdown-divider"/></li>
-                                <li>
-                                    <div class="dropdown-item form-check mb-0">
-                                        <input type="checkbox" class="form-check-input" id="arfr_show_details"
-                                               t-att-checked="header.show_details"
-                                               t-on-change="(ev) => this.updateFilter('show_details', ev.target.checked)"/>
-                                        <label class="form-check-label" for="arfr_show_details">Detalle en PDF/Excel</label>
-                                    </div>
-                                </li>
-                            </ul>
-                        </div>
+                        <!-- Columnas: menú propio con position:fixed porque la
+                             toolbar tiene overflow-x y recortaría un dropdown. -->
+                        <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button"
+                                t-on-click="toggleColumnsMenu">Columnas</button>
                         <div class="btn-group" role="group">
                             <button class="btn btn-sm btn-outline-secondary" title="Desplegar todo"
                                     t-on-click="expandAll"><i class="fa fa-angle-double-down"/></button>
@@ -170,6 +143,38 @@
                     </table>
                 </t>
             </div>
+
+            <!-- Menú de columnas flotante (fuera del contenedor con overflow). -->
+            <t t-if="state.showColumnsMenu and header">
+                <div class="o_arfr_menu_backdrop" t-on-click="closeColumnsMenu"/>
+                <ul class="dropdown-menu show p-2 o_arfr_columns_menu"
+                    t-attf-style="top: {{state.menuPos.top}}px; left: {{state.menuPos.left}}px;">
+                    <li><a class="dropdown-item" href="#" t-on-click.prevent="showAllColumns">Mostrar todas</a></li>
+                    <li><hr class="dropdown-divider"/></li>
+                    <t t-foreach="header.columns" t-as="col" t-key="col.key">
+                        <li>
+                            <div class="dropdown-item form-check mb-0">
+                                <input type="checkbox" class="form-check-input"
+                                       t-att-id="'arfr_col_' + col.key"
+                                       t-att-checked="!state.hiddenCols[col.key]"
+                                       t-on-change="() => this.toggleColumn(col.key)"/>
+                                <label class="form-check-label" t-att-for="'arfr_col_' + col.key">
+                                    <t t-esc="col.label"/>
+                                </label>
+                            </div>
+                        </li>
+                    </t>
+                    <li><hr class="dropdown-divider"/></li>
+                    <li>
+                        <div class="dropdown-item form-check mb-0">
+                            <input type="checkbox" class="form-check-input" id="arfr_show_details"
+                                   t-att-checked="header.show_details"
+                                   t-on-change="(ev) => this.updateFilter('show_details', ev.target.checked)"/>
+                            <label class="form-check-label" for="arfr_show_details">Detalle en PDF/Excel</label>
+                        </div>
+                    </li>
+                </ul>
+            </t>
         </div>
     </t>
 </templates>

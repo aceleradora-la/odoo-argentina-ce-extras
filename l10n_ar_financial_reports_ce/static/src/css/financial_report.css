@@ -28,6 +28,21 @@
     flex: 0 0 auto;
 }
 
+/* Menú de columnas flotante: fixed para escapar del overflow de la toolbar. */
+.o_arfr_menu_backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 1055;
+}
+.o_arfr_columns_menu {
+    position: fixed;
+    z-index: 1056;
+    max-height: 320px;
+    overflow-y: auto;
+    min-width: 240px;
+    max-width: 260px;
+}
+
 .o_arfr_banner {
     background-color: var(--o-info-bg, #d1ecf1);
     border-top: 1px solid rgba(0, 0, 0, 0.1);
