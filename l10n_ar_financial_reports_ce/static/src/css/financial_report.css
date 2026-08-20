@@ -59,8 +59,24 @@
     z-index: 1;
     min-width: 280px;
     max-width: 420px;
+    overflow: hidden;
     background-color: var(--o-view-background-color, #fff);
     box-shadow: inset -1px 0 0 #dee2e6, inset 0 -1px 0 #dee2e6;
+}
+/* Nombres largos: truncar con "..." dentro de la columna fija (el nombre
+   completo queda en el tooltip del title); sin esto el texto con nowrap
+   desborda por encima de las columnas de importes. */
+.o_arfr_report .o_arfr_name {
+    display: flex;
+    align-items: center;
+    max-width: 400px;
+}
+.o_arfr_report .o_arfr_name_text {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 /* Esquina (encabezado + columna fija): tapa ambos ejes. */
 .o_arfr_report thead th.o_arfr_col_name { z-index: 3; }
