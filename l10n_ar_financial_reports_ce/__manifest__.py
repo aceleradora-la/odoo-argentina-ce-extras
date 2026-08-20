@@ -3,7 +3,7 @@
     "name": "Reportes Financieros Interactivos (Community)",
     "summary": "Libro Mayor, Libro Mayor de la Empresa y Cuentas Vencidas "
                "estilo Enterprise, en pantalla (OWL) con export PDF y Excel.",
-    "version": "19.0.1.2.0",
+    "version": "19.0.1.2.1",
     "category": "Accounting",
     "author": "Aceleradora-Latam",
     "website": "https://github.com/aceleradora-la/odoo-argentina-ce-extras",

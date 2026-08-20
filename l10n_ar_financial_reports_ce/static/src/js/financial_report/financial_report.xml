@@ -128,10 +128,12 @@
                         <tbody>
                             <t t-foreach="filteredGroups" t-as="g" t-key="g.key">
                                 <tr class="o_arfr_group_row" t-on-click="() => this.toggleGroup(g.key)">
-                                    <td class="o_arfr_col_name text-nowrap">
-                                        <i t-att-class="'fa fa-fw me-1 text-muted ' + (state.expanded[g.key] ? 'fa-caret-down' : 'fa-caret-right')"/>
-                                        <t t-esc="g.name"/>
-                                        <i class="fa fa-spinner fa-spin ms-2 text-muted" t-if="state.loadingGroups[g.key]"/>
+                                    <td class="o_arfr_col_name" t-att-title="g.name">
+                                        <div class="o_arfr_name">
+                                            <i t-att-class="'fa fa-fw me-1 text-muted ' + (state.expanded[g.key] ? 'fa-caret-down' : 'fa-caret-right')"/>
+                                            <span class="o_arfr_name_text"><t t-esc="g.name"/></span>
+                                            <i class="fa fa-spinner fa-spin ms-2 text-muted" t-if="state.loadingGroups[g.key]"/>
+                                        </div>
                                     </td>
                                     <t t-foreach="visibleColumns" t-as="col" t-key="col.key">
                                         <t t-set="cell" t-value="getCell(g, col)"/>
@@ -141,9 +143,12 @@
                                 <t t-if="state.expanded[g.key]">
                                     <tr t-foreach="state.lines[g.key] or []" t-as="ln"
                                         t-key="ln_index" class="o_arfr_line_row small">
-                                        <td class="o_arfr_col_name text-nowrap"
-                                            t-att-class="ln.is_initial ? 'fst-italic' : ''">
-                                            <span class="ps-4"><t t-esc="ln.name"/></span>
+                                        <td class="o_arfr_col_name"
+                                            t-att-class="ln.is_initial ? 'fst-italic' : ''"
+                                            t-att-title="ln.name">
+                                            <div class="o_arfr_name ps-4">
+                                                <span class="o_arfr_name_text"><t t-esc="ln.name"/></span>
+                                            </div>
                                         </td>
                                         <t t-foreach="visibleColumns" t-as="col" t-key="col.key">
                                             <t t-set="cell" t-value="getCell(ln, col)"/>
