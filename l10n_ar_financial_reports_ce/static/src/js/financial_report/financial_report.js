@@ -284,16 +284,34 @@ export class ArFinancialReport extends Component {
     }
 
     // --- exportación ----------------------------------------------------
-    async exportPdf() {
-        await this.action.doAction({
-            type: "ir.actions.report",
-            report_name: "l10n_ar_financial_reports_ce.report_pdf",
-            report_type: "qweb-pdf",
-            context: { active_ids: [this.wizardId] },
-        });
+    /** Persiste el estado de la vista (buscador, columnas ocultas) para
+     *  que el export refleje exactamente lo que se ve en pantalla. */
+    async _syncViewState() {
+        const hidden = Object.keys(this.state.hiddenCols)
+            .filter((k) => this.state.hiddenCols[k]);
+        await this._callWizard("set_view_state",
+            [this.state.filterText || "", hidden.join(",")]);
     }
-    exportXlsx() {
-        window.location = `/l10n_ar_financial_reports_ce/xlsx/${this.wizardId}`;
+    async exportPdf() {
+        try {
+            await this._syncViewState();
+            await this.action.doAction({
+                type: "ir.actions.report",
+                report_name: "l10n_ar_financial_reports_ce.report_pdf",
+                report_type: "qweb-pdf",
+                context: { active_ids: [this.wizardId] },
+            });
+        } catch (error) {
+            this._notifyError(error);
+        }
+    }
+    async exportXlsx() {
+        try {
+            await this._syncViewState();
+            window.location = `/l10n_ar_financial_reports_ce/xlsx/${this.wizardId}`;
+        } catch (error) {
+            this._notifyError(error);
+        }
     }
 }
 

@@ -36,6 +36,7 @@
                             <span class="me-3" t-if="header['target_move'] == 'posted'">Asientos registrados</span>
                             <span class="me-3" t-else="">Todos los asientos</span>
                             <span class="me-3" t-if="header.get('unreconciled_only')">Solo sin conciliar</span>
+                            <span class="me-3" t-if="header.get('filter_text')">Filtro: "<t t-esc="header['filter_text']"/>"</span>
                             <span t-if="header['has_unposted']" class="text-muted">
                                 (Hay asientos sin registrar anteriores o incluidos en este período)
                             </span>
