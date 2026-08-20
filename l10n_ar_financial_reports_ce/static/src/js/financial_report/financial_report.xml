@@ -1,0 +1,165 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="l10n_ar_financial_reports_ce.Report" owl="1">
+        <div class="o_action o_arfr_report" t-ref="root">
+            <div class="o_control_panel">
+                <div class="o_control_panel_main d-flex align-items-center flex-wrap gap-2 p-2">
+                    <button class="btn btn-sm btn-primary" t-on-click="exportPdf">PDF</button>
+                    <button class="btn btn-sm btn-secondary" t-on-click="exportXlsx">XLSX</button>
+                    <h5 class="mb-0 me-3" t-if="header"><t t-esc="header.title"/></h5>
+
+                    <input type="text" class="form-control form-control-sm w-auto"
+                           placeholder="Buscar..." t-model="state.filterText"/>
+
+                    <t t-if="header">
+                        <!-- Fechas -->
+                        <t t-if="header.is_aged">
+                            <div class="input-group input-group-sm w-auto">
+                                <span class="input-group-text">Al</span>
+                                <input type="date" class="form-control form-control-sm"
+                                       t-att-value="header.date_at"
+                                       t-on-change="(ev) => this.onDateChange('date_at', ev)"/>
+                            </div>
+                            <select class="form-select form-select-sm w-auto"
+                                    t-on-change="(ev) => this.updateFilter('based_on', ev.target.value)">
+                                <option value="date_maturity" t-att-selected="header.based_on === 'date_maturity'">Según fecha límite</option>
+                                <option value="date" t-att-selected="header.based_on === 'date'">Según fecha de factura</option>
+                            </select>
+                            <div class="input-group input-group-sm w-auto" style="max-width: 110px;">
+                                <input type="number" min="1" class="form-control form-control-sm"
+                                       t-att-value="header.period_length"
+                                       t-on-change="onPeriodLengthChange"/>
+                                <span class="input-group-text">Días</span>
+                            </div>
+                        </t>
+                        <t t-else="">
+                            <div class="input-group input-group-sm w-auto">
+                                <span class="input-group-text">Desde</span>
+                                <input type="date" class="form-control form-control-sm"
+                                       t-att-value="header.date_from"
+                                       t-on-change="(ev) => this.onDateChange('date_from', ev)"/>
+                                <span class="input-group-text">Hasta</span>
+                                <input type="date" class="form-control form-control-sm"
+                                       t-att-value="header.date_to"
+                                       t-on-change="(ev) => this.onDateChange('date_to', ev)"/>
+                            </div>
+                        </t>
+                        <!-- Cuentas (solo libro mayor de la empresa) -->
+                        <select class="form-select form-select-sm w-auto"
+                                t-if="header.report_type === 'partner_ledger'"
+                                t-on-change="(ev) => this.updateFilter('account_type_filter', ev.target.value)">
+                            <option value="both" t-att-selected="header.account_type_filter === 'both'">Cuenta: Contactos comerciales</option>
+                            <option value="receivable" t-att-selected="header.account_type_filter === 'receivable'">Cuenta: Por cobrar</option>
+                            <option value="payable" t-att-selected="header.account_type_filter === 'payable'">Cuenta: Por pagar</option>
+                        </select>
+                        <!-- Asientos -->
+                        <select class="form-select form-select-sm w-auto"
+                                t-on-change="(ev) => this.updateFilter('target_move', ev.target.value)">
+                            <option value="posted" t-att-selected="header.target_move === 'posted'">Asientos registrados</option>
+                            <option value="all" t-att-selected="header.target_move === 'all'">Todos los asientos</option>
+                        </select>
+                        <!-- Columnas -->
+                        <div class="dropdown">
+                            <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button"
+                                    data-bs-toggle="dropdown" data-bs-auto-close="outside">Columnas</button>
+                            <ul class="dropdown-menu p-2" style="max-height: 320px; overflow-y: auto; min-width: 240px;">
+                                <li><a class="dropdown-item" href="#" t-on-click.prevent="showAllColumns">Mostrar todas</a></li>
+                                <li><hr class="dropdown-divider"/></li>
+                                <t t-foreach="header.columns" t-as="col" t-key="col.key">
+                                    <li>
+                                        <div class="dropdown-item form-check mb-0">
+                                            <input type="checkbox" class="form-check-input"
+                                                   t-att-id="'arfr_col_' + col.key"
+                                                   t-att-checked="!state.hiddenCols[col.key]"
+                                                   t-on-change="() => this.toggleColumn(col.key)"/>
+                                            <label class="form-check-label" t-att-for="'arfr_col_' + col.key">
+                                                <t t-esc="col.label"/>
+                                            </label>
+                                        </div>
+                                    </li>
+                                </t>
+                                <li><hr class="dropdown-divider"/></li>
+                                <li>
+                                    <div class="dropdown-item form-check mb-0">
+                                        <input type="checkbox" class="form-check-input" id="arfr_show_details"
+                                               t-att-checked="header.show_details"
+                                               t-on-change="(ev) => this.updateFilter('show_details', ev.target.checked)"/>
+                                        <label class="form-check-label" for="arfr_show_details">Detalle en PDF/Excel</label>
+                                    </div>
+                                </li>
+                            </ul>
+                        </div>
+                        <button class="btn btn-sm btn-outline-secondary" t-on-click="expandAll">Desplegar todo</button>
+                        <button class="btn btn-sm btn-outline-secondary" t-on-click="collapseAll">Plegar todo</button>
+                    </t>
+                </div>
+                <div class="o_arfr_banner text-center py-2" t-if="header and header.has_unposted">
+                    Hay <strong>asientos contables sin registrar</strong> anteriores o incluidos en este período.
+                </div>
+            </div>
+
+            <div class="o_content">
+                <t t-if="state.loading"><p class="text-muted p-3">Cargando...</p></t>
+                <t t-elif="state.error"><div class="alert alert-danger m-3" t-esc="state.error"/></t>
+                <t t-elif="!groups.length">
+                    <p class="text-muted p-3">No hay datos para los filtros seleccionados.</p>
+                </t>
+                <t t-else="">
+                    <table class="table table-sm table-hover o_arfr_table">
+                        <thead>
+                            <tr>
+                                <th class="o_arfr_col_name o_arfr_th_blank"/>
+                                <th t-att-colspan="visibleColumns.length" class="text-center o_arfr_period">
+                                    <t t-esc="header.period_label"/>
+                                </th>
+                            </tr>
+                            <tr>
+                                <th class="o_arfr_col_name"/>
+                                <t t-foreach="visibleColumns" t-as="col" t-key="col.key">
+                                    <th t-att-class="thClass(col)"><t t-esc="col.label"/></th>
+                                </t>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <t t-foreach="filteredGroups" t-as="g" t-key="g.key">
+                                <tr class="o_arfr_group_row" t-on-click="() => this.toggleGroup(g.key)">
+                                    <td class="o_arfr_col_name text-nowrap">
+                                        <i t-att-class="'fa fa-fw me-1 text-muted ' + (state.expanded[g.key] ? 'fa-caret-down' : 'fa-caret-right')"/>
+                                        <t t-esc="g.name"/>
+                                        <i class="fa fa-spinner fa-spin ms-2 text-muted" t-if="state.loadingGroups[g.key]"/>
+                                    </td>
+                                    <t t-foreach="visibleColumns" t-as="col" t-key="col.key">
+                                        <t t-set="cell" t-value="getCell(g, col)"/>
+                                        <td t-att-class="cellClass(col, cell)"><t t-esc="cell.display or ''"/></td>
+                                    </t>
+                                </tr>
+                                <t t-if="state.expanded[g.key]">
+                                    <tr t-foreach="state.lines[g.key] or []" t-as="ln"
+                                        t-key="ln_index" class="o_arfr_line_row small">
+                                        <td class="o_arfr_col_name text-nowrap"
+                                            t-att-class="ln.is_initial ? 'fst-italic' : ''">
+                                            <span class="ps-4"><t t-esc="ln.name"/></span>
+                                        </td>
+                                        <t t-foreach="visibleColumns" t-as="col" t-key="col.key">
+                                            <t t-set="cell" t-value="getCell(ln, col)"/>
+                                            <td t-att-class="cellClass(col, cell)"><t t-esc="cell.display or ''"/></td>
+                                        </t>
+                                    </tr>
+                                </t>
+                            </t>
+                        </tbody>
+                        <tfoot>
+                            <tr class="fw-bold o_arfr_total_row">
+                                <td class="o_arfr_col_name">Total</td>
+                                <t t-foreach="visibleColumns" t-as="col" t-key="col.key">
+                                    <t t-set="cell" t-value="getCell({values: totals}, col)"/>
+                                    <td t-att-class="cellClass(col, cell)"><t t-esc="cell.display or ''"/></td>
+                                </t>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </t>
+            </div>
+        </div>
+    </t>
+</templates>
