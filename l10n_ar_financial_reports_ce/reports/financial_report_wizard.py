@@ -277,6 +277,23 @@ class L10nArFinancialReportWizard(models.TransientModel):
         }
         return {'header': header, 'groups': groups, 'totals': totals}
 
+    @api.model
+    def get_or_create_report_data(self, wizard_id=None, report_type=None):
+        """La pantalla puede recargarse (F5, cambio de compañía) y perder el
+        wizard: los params del client action no sobreviven al reload y el
+        registro transient puede ser aspirado. Restaura el wizard si existe;
+        si no, crea uno nuevo con defaults (incluidas las compañías activas
+        del momento) y devuelve los datos junto con el wizard_id vigente."""
+        wizard = self.browse(wizard_id).exists() if wizard_id else self.browse()
+        if not wizard:
+            vals = {}
+            if report_type in dict(self._fields['report_type'].selection):
+                vals['report_type'] = report_type
+            wizard = self.create(vals)
+        data = wizard.get_report_data()
+        data['wizard_id'] = wizard.id
+        return data
+
     def get_group_lines(self, group_keys=None):
         """Detalle (apuntes) por grupo: {group_key: [line, ...]}.
 
@@ -585,6 +602,62 @@ class L10nArFinancialReportWizard(models.TransientModel):
         return dict(result)
 
     # ------------------------------------------------------------------
+    # Ubicación de los menús junto a los reportes estándar
+    # ------------------------------------------------------------------
+    @api.model
+    def _place_menus(self):
+        """Cuelga cada menú propio debajo de su equivalente estándar dentro
+        de Reportes, si algún módulo de reportes lo provee (se busca por
+        nombre, en los idiomas instalados, para no depender de un módulo
+        concreto). Si no se encuentra, el menú queda bajo Reportes. Corre en
+        cada instalación/actualización vía <function> en el XML de vistas."""
+        root = self.env.ref('account.menu_finance_reports',
+                            raise_if_not_found=False)
+        if not root:
+            return
+        mapping = [
+            ('l10n_ar_financial_reports_ce.menu_partner_ledger',
+             ['Libro Mayor de empresa', 'Libro mayor de la empresa',
+              'Partner Ledger']),
+            ('l10n_ar_financial_reports_ce.menu_general_ledger',
+             ['Libro Mayor', 'Libro mayor', 'General Ledger']),
+            ('l10n_ar_financial_reports_ce.menu_aged_receivable',
+             ['Cuentas por cobrar vencidas', 'Aged Receivable',
+              'Aged Receivables']),
+            ('l10n_ar_financial_reports_ce.menu_aged_payable',
+             ['Cuentas por pagar vencidas', 'Aged Payable', 'Aged Payables']),
+        ]
+        Menu = self.env['ir.ui.menu'].sudo()
+        our_menus = {}
+        for xmlid, _names in mapping:
+            menu = self.env.ref(xmlid, raise_if_not_found=False)
+            if menu:
+                our_menus[xmlid] = menu
+        our_ids = [m.id for m in our_menus.values()]
+        langs = [code for code, _name in self.env['res.lang'].get_installed()]
+        for xmlid, names in mapping:
+            our = our_menus.get(xmlid)
+            if not our:
+                continue
+            target = None
+            for lang in langs:
+                for name in names:
+                    target = Menu.with_context(lang=lang).search([
+                        ('name', '=ilike', name),
+                        ('id', 'not in', our_ids),
+                        ('parent_path', '=like', '%s%%' % root.parent_path),
+                    ], limit=1)
+                    if target:
+                        break
+                if target:
+                    break
+            if target:
+                our.sudo().write({
+                    'parent_id': target.parent_id.id,
+                    'sequence': target.sequence + 1,
+                })
+
+    # ------------------------------------------------------------------
     # Apertura del client action
     # ------------------------------------------------------------------
     def action_generate(self):
@@ -594,5 +667,5 @@ class L10nArFinancialReportWizard(models.TransientModel):
             'type': 'ir.actions.client',
             'tag': 'l10n_ar_financial_report',
             'name': REPORT_TITLES[self.report_type],
-            'params': {'wizard_id': self.id},
+            'params': {'wizard_id': self.id, 'report_type': self.report_type},
         }

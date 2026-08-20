@@ -100,16 +100,22 @@
         <field name="context">{'default_report_type': 'aged_payable'}</field>
     </record>
 
-    <menuitem id="menu_partner_ledger" name="Libro mayor de la empresa"
+    <!-- Nombres diferenciados de los reportes estándar con "(Dinámico)".
+         _place_menus() los reubica debajo de su equivalente estándar si un
+         módulo de reportes lo provee; si no, quedan acá bajo Reportes. -->
+    <menuitem id="menu_partner_ledger" name="Libro mayor de la empresa (Dinámico)"
               parent="account.menu_finance_reports" action="action_partner_ledger"
               groups="account.group_account_readonly" sequence="30"/>
-    <menuitem id="menu_general_ledger" name="Libro mayor"
+    <menuitem id="menu_general_ledger" name="Libro mayor (Dinámico)"
               parent="account.menu_finance_reports" action="action_general_ledger"
               groups="account.group_account_readonly" sequence="31"/>
-    <menuitem id="menu_aged_receivable" name="Cuenta por cobrar vencida"
+    <menuitem id="menu_aged_receivable" name="Cuentas por cobrar vencidas (Dinámico)"
               parent="account.menu_finance_reports" action="action_aged_receivable"
               groups="account.group_account_readonly" sequence="32"/>
-    <menuitem id="menu_aged_payable" name="Cuenta por pagar vencida"
+    <menuitem id="menu_aged_payable" name="Cuentas por pagar vencidas (Dinámico)"
               parent="account.menu_finance_reports" action="action_aged_payable"
               groups="account.group_account_readonly" sequence="33"/>
+
+    <!-- Corre en cada instalación/actualización del módulo. -->
+    <function model="l10n_ar.financial.report.wizard" name="_place_menus"/>
 </odoo>

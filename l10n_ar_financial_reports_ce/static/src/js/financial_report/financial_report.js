@@ -22,7 +22,13 @@ export class ArFinancialReport extends Component {
         onMounted(() => this._updateStickyOffsets());
         onPatched(() => this._updateStickyOffsets());
 
-        this.wizardId = this.props.action.params.wizard_id;
+        // Al recargar (F5, cambio de compañía) los params del action se
+        // pierden y el wizard transient puede haber sido aspirado: se
+        // restaura o se crea uno nuevo con get_or_create_report_data.
+        const params = (this.props.action && this.props.action.params) || {};
+        this.wizardId = params.wizard_id || null;
+        this.reportType = params.report_type ||
+            window.sessionStorage.getItem("arfr_report_type") || null;
         this.state = useState({
             data: null,
             loading: true,
@@ -35,8 +41,7 @@ export class ArFinancialReport extends Component {
         });
         onWillStart(async () => {
             try {
-                this.state.data = await this.orm.call(
-                    WIZARD_MODEL, "get_report_data", [this.wizardId]);
+                await this._loadInitial();
             } catch (error) {
                 this.state.error = this._errorMessage(error);
             } finally {
@@ -45,8 +50,52 @@ export class ArFinancialReport extends Component {
         });
     }
 
+    async _loadInitial() {
+        const data = await this.orm.call(
+            WIZARD_MODEL, "get_or_create_report_data", [],
+            { wizard_id: this.wizardId, report_type: this.reportType });
+        this._setData(data);
+    }
+
+    _setData(data) {
+        this.state.data = data;
+        if (data.wizard_id) {
+            this.wizardId = data.wizard_id;
+        }
+        this.reportType = data.header.report_type;
+        window.sessionStorage.setItem("arfr_report_type", this.reportType);
+    }
+
     _errorMessage(error) {
         return (error && error.data && error.data.message) || String(error);
+    }
+
+    _isMissingWizard(error) {
+        const name = (error && error.data && error.data.name) || "";
+        const message = (error && error.data && error.data.message) || "";
+        return name.indexOf("MissingError") !== -1 ||
+            message.indexOf("Expected singleton") !== -1;
+    }
+
+    /** Llama un método del wizard; si el transient ya no existe, lo recrea
+     *  con los defaults del tipo de reporte actual y reintenta una vez. */
+    async _callWizard(method, args = []) {
+        try {
+            return await this.orm.call(
+                WIZARD_MODEL, method, [this.wizardId, ...args]);
+        } catch (error) {
+            if (!this._isMissingWizard(error)) {
+                throw error;
+            }
+            const data = await this.orm.call(
+                WIZARD_MODEL, "get_or_create_report_data", [],
+                { report_type: this.reportType });
+            this._setData(data);
+            this.state.lines = {};
+            this.state.expanded = {};
+            return await this.orm.call(
+                WIZARD_MODEL, method, [this.wizardId, ...args]);
+        }
     }
 
     _updateStickyOffsets() {
@@ -112,8 +161,7 @@ export class ArFinancialReport extends Component {
         if (!(key in this.state.lines)) {
             this.state.loadingGroups[key] = true;
             try {
-                const res = await this.orm.call(
-                    WIZARD_MODEL, "get_group_lines", [this.wizardId, [key]]);
+                const res = await this._callWizard("get_group_lines", [[key]]);
                 Object.assign(this.state.lines, res);
                 if (!(key in this.state.lines)) {
                     this.state.lines[key] = [];
@@ -130,8 +178,7 @@ export class ArFinancialReport extends Component {
     async expandAll() {
         this.state.loading = true;
         try {
-            const res = await this.orm.call(
-                WIZARD_MODEL, "get_group_lines", [this.wizardId, null]);
+            const res = await this._callWizard("get_group_lines", [null]);
             this.state.lines = res;
             const expanded = {};
             for (const g of this.groups) {
@@ -153,9 +200,9 @@ export class ArFinancialReport extends Component {
         this.state.loading = true;
         this.state.error = null;
         try {
-            this.state.data = await this.orm.call(
-                WIZARD_MODEL, "update_filters",
-                [this.wizardId, { [field]: value }]);
+            const data = await this._callWizard(
+                "update_filters", [{ [field]: value }]);
+            this._setData(data);
             this.state.lines = {};
             this.state.expanded = {};
         } catch (error) {
