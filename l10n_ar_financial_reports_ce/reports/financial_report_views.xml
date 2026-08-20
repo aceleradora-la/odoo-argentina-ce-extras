@@ -50,6 +50,8 @@
                                required="report_type in ('aged_receivable', 'aged_payable')"/>
                         <field name="account_type_filter"
                                invisible="report_type != 'partner_ledger'"/>
+                        <field name="unreconciled_only"
+                               invisible="report_type != 'partner_ledger'"/>
                         <field name="based_on"
                                invisible="report_type in ('partner_ledger', 'general_ledger')"/>
                         <field name="period_length"

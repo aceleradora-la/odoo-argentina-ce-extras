@@ -53,6 +53,13 @@
                             <option value="receivable" t-att-selected="header.account_type_filter === 'receivable'">Cuenta: Por cobrar</option>
                             <option value="payable" t-att-selected="header.account_type_filter === 'payable'">Cuenta: Por pagar</option>
                         </select>
+                        <!-- Conciliación (solo libro mayor de la empresa) -->
+                        <select class="form-select form-select-sm w-auto"
+                                t-if="header.report_type === 'partner_ledger'"
+                                t-on-change="(ev) => this.updateFilter('unreconciled_only', ev.target.value === 'unreconciled')">
+                            <option value="all" t-att-selected="!header.unreconciled_only">Todos los apuntes</option>
+                            <option value="unreconciled" t-att-selected="header.unreconciled_only">Sin conciliar</option>
+                        </select>
                         <!-- Asientos -->
                         <select class="form-select form-select-sm w-auto"
                                 t-on-change="(ev) => this.updateFilter('target_move', ev.target.value)">

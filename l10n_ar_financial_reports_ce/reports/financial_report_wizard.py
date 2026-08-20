@@ -33,6 +33,7 @@ AGED_BUCKET_KEYS = ('not_due', 'b1', 'b2', 'b3', 'b4', 'older')
 UPDATABLE_FIELDS = {
     'date_from', 'date_to', 'date_at', 'target_move',
     'account_type_filter', 'period_length', 'based_on', 'show_details',
+    'unreconciled_only',
 }
 
 
@@ -76,6 +77,10 @@ class L10nArFinancialReportWizard(models.TransientModel):
     show_details = fields.Boolean(
         string='Detalle en PDF/Excel', default=True,
         help='Incluye los apuntes de cada grupo en las exportaciones.')
+    unreconciled_only = fields.Boolean(
+        string='Solo sin conciliar', default=False,
+        help='Libro mayor de la empresa: muestra únicamente los apuntes '
+             'pendientes de conciliación (con importe residual).')
 
     @api.model
     def default_get(self, fields_list):
@@ -156,8 +161,12 @@ class L10nArFinancialReportWizard(models.TransientModel):
 
     def _ledger_account_domain(self):
         if self.report_type == 'partner_ledger':
-            return [('account_id.account_type', 'in',
-                     self._partner_account_types())]
+            domain = [('account_id.account_type', 'in',
+                       self._partner_account_types())]
+            if self.unreconciled_only:
+                # Pendientes: apuntes con residual (excluye lo conciliado).
+                domain.append(('amount_residual', '!=', 0))
+            return domain
         return []
 
     def _check_config(self):
@@ -268,6 +277,7 @@ class L10nArFinancialReportWizard(models.TransientModel):
             'date_at': fields.Date.to_string(self.date_at) or False,
             'target_move': self.target_move,
             'account_type_filter': self.account_type_filter,
+            'unreconciled_only': self.unreconciled_only,
             'period_length': self.period_length,
             'based_on': self.based_on,
             'show_details': self.show_details,
