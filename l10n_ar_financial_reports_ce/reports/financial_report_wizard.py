@@ -8,7 +8,7 @@
 
 from collections import defaultdict
 
-from odoo import api, fields, models
+from odoo import api, fields, models, release
 from odoo.exceptions import UserError
 from odoo.tools.misc import format_date, formatLang
 
@@ -468,6 +468,7 @@ class L10nArFinancialReportWizard(models.TransientModel):
                 })
             lines_by_group[key].append({
                 'name': line.move_id.name or '/',
+                'move_id': line.move_id.id,
                 'is_initial': False,
                 'values': values,
             })
@@ -596,10 +597,54 @@ class L10nArFinancialReportWizard(models.TransientModel):
             }
             result[key].append({
                 'name': line.move_id.name or '/',
+                'move_id': line.move_id.id,
                 'is_initial': False,
                 'values': values,
             })
         return dict(result)
+
+    # ------------------------------------------------------------------
+    # Drilldown a los apuntes (estilo Enterprise)
+    # ------------------------------------------------------------------
+    def action_open_cell(self, group_key, col_key=None):
+        """act_window con los apuntes que componen la celda clickeada de una
+        fila de grupo (contacto/cuenta). En vencidas, col_key acota al tramo."""
+        self.ensure_one()
+        self._check_config()
+        if self._is_aged():
+            keys = None if not col_key or col_key == 'total' else {col_key}
+            ids = [
+                line.id
+                for line, bucket, _amount in self._aged_line_amounts()
+                if (line.partner_id.id if line.partner_id else 0) == group_key
+                and (keys is None or bucket in keys)
+            ]
+            domain = [('id', 'in', ids)]
+        else:
+            gfield = self._ledger_group_field()
+            domain = self._common_domain() + self._ledger_account_domain() + [
+                ('date', '>=', self.date_from),
+                ('date', '<=', self.date_to),
+                (gfield, '=', group_key or False),
+            ]
+        if self.report_type == 'general_ledger':
+            record = self.env['account.account'].browse(group_key)
+            label = self._ledger_group_label(
+                group_key, record if group_key and record.exists() else None)
+        else:
+            record = self.env['res.partner'].browse(group_key)
+            label = self._partner_label(
+                record if group_key and record.exists() else None)
+        # Odoo 17 usa 'tree' como view_mode; 18+ usa 'list'.
+        list_mode = 'tree' if release.version_info[0] < 18 else 'list'
+        return {
+            'type': 'ir.actions.act_window',
+            'name': 'Apuntes - %s' % label,
+            'res_model': 'account.move.line',
+            'view_mode': '%s,form' % list_mode,
+            'domain': domain,
+            'context': {'create': False},
+        }
 
     # ------------------------------------------------------------------
     # Ubicación de los menús junto a los reportes estándar
