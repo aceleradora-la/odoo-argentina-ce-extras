@@ -46,9 +46,11 @@ class L10nArFinancialReportWizard(models.TransientModel):
         ('aged_receivable', 'Cuenta por cobrar vencida'),
         ('aged_payable', 'Cuenta por pagar vencida'),
     ], string='Reporte', required=True, default='partner_ledger')
-    company_id = fields.Many2one(
-        'res.company', string='Compañía', required=True,
-        default=lambda self: self.env.company)
+    company_ids = fields.Many2many(
+        'res.company', string='Compañías',
+        default=lambda self: self.env.companies,
+        help='Vacío = compañía activa. Como en el resto de Odoo, el reporte '
+             'incluye la información de todas las compañías seleccionadas.')
     # Rango para los libros mayores.
     date_from = fields.Date(string='Desde')
     date_to = fields.Date(string='Hasta')
@@ -95,19 +97,29 @@ class L10nArFinancialReportWizard(models.TransientModel):
     def _is_aged(self):
         return self.report_type in ('aged_receivable', 'aged_payable')
 
+    def _get_companies(self):
+        """Como en el resto de Odoo: todas las compañías seleccionadas."""
+        return self.company_ids or self.env.company
+
+    def _main_company(self):
+        return self._get_companies()[0]
+
+    def _currency(self):
+        return self._main_company().currency_id
+
     def _get_states(self):
         return ['posted'] if self.target_move == 'posted' else ['posted', 'draft']
 
     def _fmt(self, value):
         return formatLang(self.env, value or 0.0,
-                          currency_obj=self.company_id.currency_id)
+                          currency_obj=self._currency())
 
     def _fmt_date(self, value):
         return format_date(self.env, value) if value else ''
 
     def _money_cell(self, value):
         """Celda monetaria: display formateado + valor crudo (Excel) + clase."""
-        currency = self.company_id.currency_id
+        currency = self._currency()
         value = currency.round(value or 0.0)
         cls = ''
         if currency.is_zero(value):
@@ -129,7 +141,7 @@ class L10nArFinancialReportWizard(models.TransientModel):
 
     def _common_domain(self):
         return [
-            ('company_id', 'child_of', self.company_id.id),
+            ('company_id', 'child_of', self._get_companies().ids),
             ('parent_state', 'in', self._get_states()),
             ('display_type', 'not in', ('line_section', 'line_note')),
         ]
@@ -240,15 +252,16 @@ class L10nArFinancialReportWizard(models.TransientModel):
 
         has_unposted = bool(self.env['account.move'].search_count([
             ('state', '=', 'draft'),
-            ('company_id', 'child_of', self.company_id.id),
+            ('company_id', 'child_of', self._get_companies().ids),
             ('date', '<=', end_date),
         ], limit=1))
 
         header = {
             'report_type': self.report_type,
             'title': REPORT_TITLES[self.report_type],
-            'company_name': self.company_id.display_name,
-            'currency_name': self.company_id.currency_id.name,
+            'company_name': ', '.join(
+                self._get_companies().mapped('display_name')),
+            'currency_name': self._currency().name,
             'period_label': period_label,
             'date_from': fields.Date.to_string(self.date_from) or False,
             'date_to': fields.Date.to_string(self.date_to) or False,
@@ -318,7 +331,7 @@ class L10nArFinancialReportWizard(models.TransientModel):
         if self.report_type == 'partner_ledger':
             domains = [base + [('date', '<', self.date_from)]]
         else:
-            fy_start = self.company_id.compute_fiscalyear_dates(
+            fy_start = self._main_company().compute_fiscalyear_dates(
                 self.date_from)['date_from']
             domains = [
                 base + [('date', '<', self.date_from),
@@ -342,7 +355,7 @@ class L10nArFinancialReportWizard(models.TransientModel):
     def _ledger_groups(self):
         AML = self.env['account.move.line']
         gfield = self._ledger_group_field()
-        currency = self.company_id.currency_id
+        currency = self._currency()
         base = self._common_domain() + self._ledger_account_domain()
         period_domain = base + [('date', '>=', self.date_from),
                                 ('date', '<=', self.date_to)]
@@ -395,7 +408,7 @@ class L10nArFinancialReportWizard(models.TransientModel):
     def _ledger_lines(self, group_keys=None):
         AML = self.env['account.move.line']
         gfield = self._ledger_group_field()
-        currency = self.company_id.currency_id
+        currency = self._currency()
         is_partner = self.report_type == 'partner_ledger'
         base = self._common_domain() + self._ledger_account_domain()
         domain = base + [('date', '>=', self.date_from),
@@ -471,7 +484,7 @@ class L10nArFinancialReportWizard(models.TransientModel):
         account_type = 'asset_receivable' \
             if self.report_type == 'aged_receivable' else 'liability_payable'
         AML = self.env['account.move.line']
-        currency = self.company_id.currency_id
+        currency = self._currency()
         domain = self._common_domain() + [
             ('account_id.account_type', '=', account_type),
             ('date', '<=', self.date_at),
@@ -522,7 +535,7 @@ class L10nArFinancialReportWizard(models.TransientModel):
                 for line, residual in self._aged_residual_lines()]
 
     def _aged_groups(self):
-        currency = self.company_id.currency_id
+        currency = self._currency()
         sums = defaultdict(lambda: defaultdict(float))
         partners = {}
         for line, bucket, amount in self._aged_line_amounts():
