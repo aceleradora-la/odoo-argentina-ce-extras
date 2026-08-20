@@ -1,0 +1,68 @@
+/* Reportes financieros interactivos (Community).
+   Claves del sticky (skill odoo-community-report):
+   1) el contenedor de scroll NO lleva padding (position:sticky se ancla al
+      borde interior del padding y deja una "franja"); el espaciado va como
+      margen de los hijos.
+   2) la 2ª fila del thead se posiciona con la altura REAL de la 1ª, medida
+      por el componente tras cada render (variable CSS). */
+
+.o_arfr_report .o_content {
+    overflow: auto;
+    padding: 0;
+}
+.o_arfr_report .o_content > * {
+    margin: 1rem;
+}
+
+.o_arfr_banner {
+    background-color: var(--o-info-bg, #d1ecf1);
+    border-top: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+/* --- Encabezado fijo (scroll vertical) --- */
+.o_arfr_report thead th {
+    position: sticky;
+    z-index: 2;
+    background-color: var(--o-view-background-color, #fff);
+    box-shadow: inset 0 -1px 0 #dee2e6;
+}
+.o_arfr_report table { --arfr-thead-row1-h: 34px; }
+.o_arfr_report thead tr:first-child th { top: 0; }
+.o_arfr_report thead tr:last-child th { top: var(--arfr-thead-row1-h, 34px); }
+
+.o_arfr_report .o_arfr_period {
+    font-weight: 600;
+    border: 1px solid #dee2e6;
+}
+.o_arfr_report .o_arfr_th_blank {
+    box-shadow: none;
+}
+
+/* --- Primera columna fija (scroll horizontal) --- */
+.o_arfr_report .o_arfr_col_name {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    min-width: 280px;
+    max-width: 420px;
+    background-color: var(--o-view-background-color, #fff);
+    box-shadow: inset -1px 0 0 #dee2e6, inset 0 -1px 0 #dee2e6;
+}
+/* Esquina (encabezado + columna fija): tapa ambos ejes. */
+.o_arfr_report thead th.o_arfr_col_name { z-index: 3; }
+
+.o_arfr_report .o_arfr_group_row { cursor: pointer; }
+.o_arfr_report .o_arfr_group_row td { font-weight: 500; }
+.o_arfr_report .o_arfr_line_row td,
+.o_arfr_report .o_arfr_line_row .o_arfr_col_name {
+    background-color: var(--o-webclient-background-color, #f8f9fa);
+    color: var(--o-main-text-color, #495057);
+}
+
+/* $ 0,00 atenuado, como en Enterprise. */
+.o_arfr_report .o_arfr_zero { color: #adb5bd; }
+
+.o_arfr_report .o_arfr_total_row td {
+    border-top: 2px solid #dee2e6;
+    background-color: var(--o-view-background-color, #fff);
+}

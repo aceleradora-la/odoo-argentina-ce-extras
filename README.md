@@ -21,6 +21,17 @@ Módulo para importar facturas desde archivos Excel exportados desde ARCA/AFIP, 
 
 Ver la documentación en [l10n_ar_import_bill_ce/README.rst](l10n_ar_import_bill_ce/README.rst)
 
+### l10n_ar_financial_reports_ce
+
+Reportes financieros interactivos estilo Enterprise para Odoo Community: Libro mayor de la empresa, Libro mayor, Cuenta por cobrar vencida y Cuenta por pagar vencida, en pantalla (OWL) con filas desplegables y filtros en vivo, más export opcional a PDF y Excel.
+
+**Versiones disponibles:**
+- Odoo 17.0 Community: rama `17.0`
+- Odoo 18.0 Community: rama `18.0`
+- Odoo 19.0 Community: rama `19.0`
+
+Ver la documentación en [l10n_ar_financial_reports_ce/README.md](l10n_ar_financial_reports_ce/README.md)
+
 ## Instalación
 
 1. Clonar este repositorio y cambiar a la rama correspondiente:
