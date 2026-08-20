@@ -110,7 +110,11 @@
                                     </td>
                                     <t t-foreach="visibleColumns" t-as="col" t-key="col.key">
                                         <t t-set="cell" t-value="getCell(g, col)"/>
-                                        <td t-att-class="cellClass(col, cell)"><t t-esc="cell.display or ''"/></td>
+                                        <td t-att-class="cellClass(col, cell) + (isDrillable(col, cell) ? ' o_arfr_drill' : '')"
+                                            t-att-title="isDrillable(col, cell) ? 'Ver apuntes' : ''"
+                                            t-on-click="(ev) => this.onGroupCellClick(g, col, ev)">
+                                            <t t-esc="cell.display or ''"/>
+                                        </td>
                                     </t>
                                 </tr>
                                 <t t-if="state.expanded[g.key]">
@@ -120,7 +124,13 @@
                                             t-att-class="ln.is_initial ? 'fst-italic' : ''"
                                             t-att-title="ln.name">
                                             <div class="o_arfr_name ps-4">
-                                                <span class="o_arfr_name_text"><t t-esc="ln.name"/></span>
+                                                <span class="o_arfr_name_text">
+                                                    <a href="#" t-if="ln.move_id" title="Abrir asiento"
+                                                       t-on-click.prevent="() => this.openMove(ln)">
+                                                        <t t-esc="ln.name"/>
+                                                    </a>
+                                                    <t t-else="" t-esc="ln.name"/>
+                                                </span>
                                             </div>
                                         </td>
                                         <t t-foreach="visibleColumns" t-as="col" t-key="col.key">

@@ -174,7 +174,38 @@ export class ArFinancialReport extends Component {
             ? "text-end" : (col.type === "date" ? "text-center" : "");
     }
 
-    // --- drilldown ------------------------------------------------------
+    // --- drilldown a los apuntes (estilo Enterprise) --------------------
+    isDrillable(col, cell) {
+        return col.type === "monetary" && cell && cell.display;
+    }
+    onGroupCellClick(g, col, ev) {
+        const cell = this.getCell(g, col);
+        if (!this.isDrillable(col, cell)) {
+            return; // deja propagar: el click pliega/despliega la fila
+        }
+        ev.stopPropagation();
+        this.openGroupCell(g, col);
+    }
+    async openGroupCell(g, col) {
+        try {
+            const action = await this._callWizard(
+                "action_open_cell", [g.key, col.key]);
+            await this.action.doAction(action);
+        } catch (error) {
+            this.state.error = this._errorMessage(error);
+        }
+    }
+    openMove(ln) {
+        this.action.doAction({
+            type: "ir.actions.act_window",
+            res_model: "account.move",
+            res_id: ln.move_id,
+            views: [[false, "form"]],
+            target: "current",
+        });
+    }
+
+    // --- desplegar grupos ----------------------------------------------
     async toggleGroup(key) {
         if (this.state.expanded[key]) {
             this.state.expanded[key] = false;
