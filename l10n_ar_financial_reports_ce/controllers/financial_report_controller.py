@@ -69,8 +69,12 @@ class FinancialReportController(http.Controller):
         sheet.write(0, 0, header['title'], info_fmt)
         sheet.write(1, 0, header['company_name'], info_fmt)
         sheet.write(2, 0, header['period_label'], info_fmt)
-        sheet.write(3, 0, 'Asientos registrados'
-                    if header['target_move'] == 'posted' else 'Todos los asientos')
+        filters_line = ('Asientos registrados'
+                        if header['target_move'] == 'posted'
+                        else 'Todos los asientos')
+        if header.get('filter_text'):
+            filters_line += ' - Filtro: %s' % header['filter_text']
+        sheet.write(3, 0, filters_line)
 
         header_row = 5
         sheet.write(header_row, 0, '', head_fmt)

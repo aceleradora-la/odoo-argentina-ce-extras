@@ -81,6 +81,10 @@ class L10nArFinancialReportWizard(models.TransientModel):
         string='Solo sin conciliar', default=False,
         help='Libro mayor de la empresa: muestra únicamente los apuntes '
              'pendientes de conciliación (con importe residual).')
+    # Estado de la vista (buscador y columnas ocultas): la pantalla lo
+    # sincroniza antes de exportar para que el PDF/Excel muestren lo mismo.
+    filter_text = fields.Char(string='Filtro de búsqueda')
+    hidden_column_keys = fields.Char(string='Columnas ocultas')
 
     @api.model
     def default_get(self, fields_list):
@@ -316,11 +320,45 @@ class L10nArFinancialReportWizard(models.TransientModel):
             return self._aged_lines(group_keys)
         return self._ledger_lines(group_keys)
 
+    def set_view_state(self, filter_text, hidden_column_keys):
+        """La pantalla persiste su estado (buscador, columnas ocultas) justo
+        antes de exportar, para que el PDF/Excel reflejen lo que se ve."""
+        self.ensure_one()
+        self.write({
+            'filter_text': filter_text or False,
+            'hidden_column_keys': hidden_column_keys or False,
+        })
+        return True
+
     def get_export_data(self):
-        """Payload común para PDF y Excel (mismos datos que la pantalla)."""
+        """Payload común para PDF y Excel: mismos datos que la pantalla,
+        aplicando también el buscador y las columnas ocultas."""
         self.ensure_one()
         data = self.get_report_data()
-        lines_by_group = self.get_group_lines() if self.show_details else {}
+        header = data['header']
+        header['filter_text'] = self.filter_text or ''
+
+        hidden = set((self.hidden_column_keys or '').split(',')) - {''}
+        if hidden:
+            header['columns'] = [
+                c for c in header['columns'] if c['key'] not in hidden]
+
+        text = (self.filter_text or '').strip().upper()
+        filtered = bool(text)
+        if filtered:
+            data['groups'] = [
+                g for g in data['groups'] if text in (g['name'] or '').upper()]
+            data['totals'] = {
+                col['key']: self._money_cell(sum(
+                    (g['values'].get(col['key']) or {}).get('value') or 0.0
+                    for g in data['groups']))
+                for col in header['columns'] if col['type'] == 'monetary'
+            }
+
+        lines_by_group = {}
+        if self.show_details:
+            keys = [g['key'] for g in data['groups']] if filtered else None
+            lines_by_group = self.get_group_lines(keys)
         return {'data': data, 'lines_by_group': lines_by_group}
 
     def update_filters(self, values):
