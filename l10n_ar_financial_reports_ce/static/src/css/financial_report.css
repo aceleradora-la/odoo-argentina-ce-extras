@@ -14,6 +14,20 @@
     margin: 1rem;
 }
 
+/* Toolbar en una sola fila: nada baja a una segunda línea; si no entra,
+   scrollea horizontal. */
+.o_arfr_report .o_arfr_toolbar {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    white-space: nowrap;
+}
+.o_arfr_report .o_arfr_toolbar > *,
+.o_arfr_report .o_arfr_toolbar .form-select,
+.o_arfr_report .o_arfr_toolbar .input-group,
+.o_arfr_report .o_arfr_toolbar .btn {
+    flex: 0 0 auto;
+}
+
 .o_arfr_banner {
     background-color: var(--o-info-bg, #d1ecf1);
     border-top: 1px solid rgba(0, 0, 0, 0.1);
