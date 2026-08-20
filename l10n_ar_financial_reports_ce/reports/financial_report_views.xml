@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Formato apaisado: las tablas del libro mayor son anchas. -->
+    <record id="paperformat_financial_report" model="report.paperformat">
+        <field name="name">Reporte financiero apaisado</field>
+        <field name="format">A4</field>
+        <field name="orientation">Landscape</field>
+        <field name="margin_top">30</field>
+        <field name="margin_bottom">18</field>
+        <field name="margin_left">5</field>
+        <field name="margin_right">5</field>
+        <field name="header_spacing">25</field>
+        <field name="dpi">90</field>
+    </record>
+
+    <!-- ir.actions.report para el botón "PDF" del componente.
+         SIN binding_model_id: no aparece en el menú Imprimir. -->
+    <record id="action_financial_report_pdf" model="ir.actions.report">
+        <field name="name">Reporte financiero</field>
+        <field name="model">l10n_ar.financial.report.wizard</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">l10n_ar_financial_reports_ce.report_pdf</field>
+        <field name="report_file">l10n_ar_financial_reports_ce.report_pdf</field>
+        <field name="paperformat_id" ref="paperformat_financial_report"/>
+    </record>
+
+    <!-- Formulario de selección previa (el menú abre esto, no el client action). -->
+    <record id="view_financial_report_wizard_form" model="ir.ui.view">
+        <field name="name">l10n_ar.financial.report.wizard.form</field>
+        <field name="model">l10n_ar.financial.report.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Reporte financiero">
+                <group>
+                    <group>
+                        <field name="report_type"/>
+                        <field name="company_id" groups="base.group_multi_company"
+                               options="{'no_create': True}"/>
+                        <field name="target_move"/>
+                        <field name="show_details"/>
+                    </group>
+                    <group>
+                        <field name="date_from"
+                               invisible="report_type in ('aged_receivable', 'aged_payable')"
+                               required="report_type in ('partner_ledger', 'general_ledger')"/>
+                        <field name="date_to"
+                               invisible="report_type in ('aged_receivable', 'aged_payable')"
+                               required="report_type in ('partner_ledger', 'general_ledger')"/>
+                        <field name="date_at"
+                               invisible="report_type in ('partner_ledger', 'general_ledger')"
+                               required="report_type in ('aged_receivable', 'aged_payable')"/>
+                        <field name="account_type_filter"
+                               invisible="report_type != 'partner_ledger'"/>
+                        <field name="based_on"
+                               invisible="report_type in ('partner_ledger', 'general_ledger')"/>
+                        <field name="period_length"
+                               invisible="report_type in ('partner_ledger', 'general_ledger')"/>
+                    </group>
+                </group>
+                <footer>
+                    <button name="action_generate" type="object" string="Ver Reporte" class="btn-primary"/>
+                    <button string="Cancelar" special="cancel" class="btn-secondary"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_partner_ledger" model="ir.actions.act_window">
+        <field name="name">Libro mayor de la empresa</field>
+        <field name="res_model">l10n_ar.financial.report.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="view_id" ref="view_financial_report_wizard_form"/>
+        <field name="target">new</field>
+        <field name="context">{'default_report_type': 'partner_ledger'}</field>
+    </record>
+
+    <record id="action_general_ledger" model="ir.actions.act_window">
+        <field name="name">Libro mayor</field>
+        <field name="res_model">l10n_ar.financial.report.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="view_id" ref="view_financial_report_wizard_form"/>
+        <field name="target">new</field>
+        <field name="context">{'default_report_type': 'general_ledger'}</field>
+    </record>
+
+    <record id="action_aged_receivable" model="ir.actions.act_window">
+        <field name="name">Cuenta por cobrar vencida</field>
+        <field name="res_model">l10n_ar.financial.report.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="view_id" ref="view_financial_report_wizard_form"/>
+        <field name="target">new</field>
+        <field name="context">{'default_report_type': 'aged_receivable'}</field>
+    </record>
+
+    <record id="action_aged_payable" model="ir.actions.act_window">
+        <field name="name">Cuenta por pagar vencida</field>
+        <field name="res_model">l10n_ar.financial.report.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="view_id" ref="view_financial_report_wizard_form"/>
+        <field name="target">new</field>
+        <field name="context">{'default_report_type': 'aged_payable'}</field>
+    </record>
+
+    <menuitem id="menu_partner_ledger" name="Libro mayor de la empresa"
+              parent="account.menu_finance_reports" action="action_partner_ledger"
+              groups="account.group_account_readonly" sequence="30"/>
+    <menuitem id="menu_general_ledger" name="Libro mayor"
+              parent="account.menu_finance_reports" action="action_general_ledger"
+              groups="account.group_account_readonly" sequence="31"/>
+    <menuitem id="menu_aged_receivable" name="Cuenta por cobrar vencida"
+              parent="account.menu_finance_reports" action="action_aged_receivable"
+              groups="account.group_account_readonly" sequence="32"/>
+    <menuitem id="menu_aged_payable" name="Cuenta por pagar vencida"
+              parent="account.menu_finance_reports" action="action_aged_payable"
+              groups="account.group_account_readonly" sequence="33"/>
+</odoo>

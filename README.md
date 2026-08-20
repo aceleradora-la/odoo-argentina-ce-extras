@@ -33,6 +33,17 @@ Módulo de extensión para `l10n_ar_afipws_fe` que permite elegir el modo de tra
 - Prioriza el valor de la factura sobre la configuración general
 - Visible solo para facturas de crédito electrónica (FCE)
 
+### l10n_ar_financial_reports_ce
+
+Reportes financieros interactivos estilo Enterprise para Odoo Community: Libro mayor de la empresa, Libro mayor, Cuenta por cobrar vencida y Cuenta por pagar vencida, en pantalla (OWL) con filas desplegables y filtros en vivo, más export opcional a PDF y Excel.
+
+**Versiones disponibles:**
+- Odoo 17.0 Community: rama `17.0`
+- Odoo 18.0 Community: rama `18.0`
+- Odoo 19.0 Community: rama `19.0`
+
+Ver la documentación en [l10n_ar_financial_reports_ce/README.md](l10n_ar_financial_reports_ce/README.md)
+
 ## Instalación
 
 1. Clonar este repositorio y cambiar a la rama correspondiente:

@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- PDF QWeb del reporte (wkhtmltopdf). Reusa get_export_data() del wizard:
+     los mismos datos que la pantalla y el Excel. -->
+<odoo>
+    <template id="report_pdf">
+        <t t-foreach="docs" t-as="doc">
+            <t t-call="web.html_container">
+                <t t-call="web.external_layout">
+                    <t t-set="export" t-value="doc.get_export_data()"/>
+                    <t t-set="data" t-value="export['data']"/>
+                    <t t-set="header" t-value="data['header']"/>
+                    <t t-set="columns" t-value="header['columns']"/>
+                    <t t-set="lines_by_group" t-value="export['lines_by_group']"/>
+                    <div class="page">
+                        <h4>
+                            <t t-esc="header['title']"/> -
+                            <t t-esc="header['company_name']"/>
+                        </h4>
+                        <div class="mb-2 small">
+                            <span class="me-3"><strong><t t-esc="header['period_label']"/></strong></span>
+                            <span class="me-3" t-if="header['target_move'] == 'posted'">Asientos registrados</span>
+                            <span class="me-3" t-else="">Todos los asientos</span>
+                            <span t-if="header['has_unposted']" class="text-muted">
+                                (Hay asientos sin registrar anteriores o incluidos en este período)
+                            </span>
+                        </div>
+                        <table class="table table-sm" style="font-size: 0.72rem;">
+                            <thead>
+                                <tr>
+                                    <th style="background:none !important; border-bottom: 1px solid #333;"/>
+                                    <t t-foreach="columns" t-as="col">
+                                        <th t-attf-style="background:none !important; border-bottom: 1px solid #333; text-align: #{'right' if col['type'] in ('monetary', 'text_right') else ('center' if col['type'] == 'date' else 'left')};">
+                                            <t t-esc="col['label']"/>
+                                        </th>
+                                    </t>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <t t-foreach="data['groups']" t-as="g">
+                                    <tr style="font-weight: 600; background-color: #f2f2f2;">
+                                        <td><t t-esc="g['name']"/></td>
+                                        <t t-foreach="columns" t-as="col">
+                                            <t t-set="cell" t-value="g['values'].get(col['key']) or {}"/>
+                                            <td t-attf-style="text-align: #{'right' if col['type'] in ('monetary', 'text_right') else ('center' if col['type'] == 'date' else 'left')};#{' color: #dc3545;' if 'text-danger' in (cell.get('class') or '') else ''}">
+                                                <t t-esc="cell.get('display') or ''"/>
+                                            </td>
+                                        </t>
+                                    </tr>
+                                    <t t-foreach="lines_by_group.get(g['key']) or []" t-as="ln">
+                                        <tr>
+                                            <td t-attf-style="padding-left: 14px;#{' font-style: italic;' if ln.get('is_initial') else ''}">
+                                                <t t-esc="ln['name']"/>
+                                            </td>
+                                            <t t-foreach="columns" t-as="col">
+                                                <t t-set="cell" t-value="ln['values'].get(col['key']) or {}"/>
+                                                <td t-attf-style="text-align: #{'right' if col['type'] in ('monetary', 'text_right') else ('center' if col['type'] == 'date' else 'left')};#{' color: #dc3545;' if 'text-danger' in (cell.get('class') or '') else ''}">
+                                                    <t t-esc="cell.get('display') or ''"/>
+                                                </td>
+                                            </t>
+                                        </tr>
+                                    </t>
+                                </t>
+                                <tr style="font-weight: 700; border-top: 2px solid #333;">
+                                    <td>Total</td>
+                                    <t t-foreach="columns" t-as="col">
+                                        <t t-set="cell" t-value="data['totals'].get(col['key']) or {}"/>
+                                        <td t-attf-style="text-align: #{'right' if col['type'] in ('monetary', 'text_right') else ('center' if col['type'] == 'date' else 'left')};#{' color: #dc3545;' if 'text-danger' in (cell.get('class') or '') else ''}">
+                                            <t t-esc="cell.get('display') or ''"/>
+                                        </td>
+                                    </t>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </t>
+            </t>
+        </t>
+    </template>
+</odoo>
