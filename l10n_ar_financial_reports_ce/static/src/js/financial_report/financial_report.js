@@ -16,6 +16,7 @@ export class ArFinancialReport extends Component {
     setup() {
         this.orm = useService("orm");
         this.action = useService("action");
+        this.notification = useService("notification");
         this.rootRef = useRef("root");
         // El thead sticky de 2 filas necesita la altura REAL de la fila 1:
         // se mide tras cada render (ver skill odoo-community-report).
@@ -70,6 +71,12 @@ export class ArFinancialReport extends Component {
 
     _errorMessage(error) {
         return (error && error.data && error.data.message) || String(error);
+    }
+
+    /** Errores de interacción: toast que no destruye la tabla en pantalla
+     *  (state.error queda solo para la carga inicial). */
+    _notifyError(error) {
+        this.notification.add(this._errorMessage(error), { type: "danger" });
     }
 
     _isMissingWizard(error) {
@@ -192,7 +199,7 @@ export class ArFinancialReport extends Component {
                 "action_open_cell", [g.key, col.key]);
             await this.action.doAction(action);
         } catch (error) {
-            this.state.error = this._errorMessage(error);
+            this._notifyError(error);
         }
     }
     openMove(ln) {
@@ -220,7 +227,7 @@ export class ArFinancialReport extends Component {
                     this.state.lines[key] = [];
                 }
             } catch (error) {
-                this.state.error = this._errorMessage(error);
+                this._notifyError(error);
                 return;
             } finally {
                 this.state.loadingGroups[key] = false;
@@ -239,7 +246,7 @@ export class ArFinancialReport extends Component {
             }
             this.state.expanded = expanded;
         } catch (error) {
-            this.state.error = this._errorMessage(error);
+            this._notifyError(error);
         } finally {
             this.state.loading = false;
         }
@@ -259,7 +266,7 @@ export class ArFinancialReport extends Component {
             this.state.lines = {};
             this.state.expanded = {};
         } catch (error) {
-            this.state.error = this._errorMessage(error);
+            this._notifyError(error);
         } finally {
             this.state.loading = false;
         }
