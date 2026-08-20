@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- PDF QWeb del reporte (wkhtmltopdf). Reusa get_export_data() del wizard:
-     los mismos datos que la pantalla y el Excel. -->
+     los mismos datos que la pantalla y el Excel.
+     OJO: estilos por CLASE, no inline por celda — con miles de apuntes el
+     HTML con estilos inline crece tanto que wkhtmltopdf aborta (-11). -->
 <odoo>
     <template id="report_pdf">
         <t t-foreach="docs" t-as="doc">
@@ -11,7 +13,20 @@
                     <t t-set="header" t-value="data['header']"/>
                     <t t-set="columns" t-value="header['columns']"/>
                     <t t-set="lines_by_group" t-value="export['lines_by_group']"/>
-                    <div class="page">
+                    <div class="page arfr">
+                        <style>
+                            .arfr table { font-size: 0.72rem; width: 100%; border-collapse: collapse; }
+                            .arfr th, .arfr td { padding: 2px 4px; }
+                            .arfr thead th { border-bottom: 1px solid #333; background: none !important; text-align: left; }
+                            .arfr tbody tr { border-bottom: 1px solid #e5e5e5; }
+                            .arfr .r { text-align: right; }
+                            .arfr .c { text-align: center; }
+                            .arfr .neg { color: #dc3545; }
+                            .arfr .grp td { font-weight: 600; background-color: #f2f2f2; }
+                            .arfr .nm { padding-left: 14px; }
+                            .arfr .ini { font-style: italic; }
+                            .arfr .tot td { font-weight: 700; border-top: 2px solid #333; }
+                        </style>
                         <h4>
                             <t t-esc="header['title']"/> -
                             <t t-esc="header['company_name']"/>
@@ -20,16 +35,17 @@
                             <span class="me-3"><strong><t t-esc="header['period_label']"/></strong></span>
                             <span class="me-3" t-if="header['target_move'] == 'posted'">Asientos registrados</span>
                             <span class="me-3" t-else="">Todos los asientos</span>
+                            <span class="me-3" t-if="header.get('unreconciled_only')">Solo sin conciliar</span>
                             <span t-if="header['has_unposted']" class="text-muted">
                                 (Hay asientos sin registrar anteriores o incluidos en este período)
                             </span>
                         </div>
-                        <table class="table table-sm" style="font-size: 0.72rem;">
+                        <table>
                             <thead>
                                 <tr>
-                                    <th style="background:none !important; border-bottom: 1px solid #333;"/>
+                                    <th/>
                                     <t t-foreach="columns" t-as="col">
-                                        <th t-attf-style="background:none !important; border-bottom: 1px solid #333; text-align: #{'right' if col['type'] in ('monetary', 'text_right') else ('center' if col['type'] == 'date' else 'left')};">
+                                        <th t-att-class="'r' if col['type'] in ('monetary', 'text_right') else ('c' if col['type'] == 'date' else '')">
                                             <t t-esc="col['label']"/>
                                         </th>
                                     </t>
@@ -37,34 +53,34 @@
                             </thead>
                             <tbody>
                                 <t t-foreach="data['groups']" t-as="g">
-                                    <tr style="font-weight: 600; background-color: #f2f2f2;">
+                                    <tr class="grp">
                                         <td><t t-esc="g['name']"/></td>
                                         <t t-foreach="columns" t-as="col">
                                             <t t-set="cell" t-value="g['values'].get(col['key']) or {}"/>
-                                            <td t-attf-style="text-align: #{'right' if col['type'] in ('monetary', 'text_right') else ('center' if col['type'] == 'date' else 'left')};#{' color: #dc3545;' if 'text-danger' in (cell.get('class') or '') else ''}">
+                                            <td t-att-class="('r' if col['type'] in ('monetary', 'text_right') else ('c' if col['type'] == 'date' else '')) + (' neg' if 'text-danger' in (cell.get('class') or '') else '')">
                                                 <t t-esc="cell.get('display') or ''"/>
                                             </td>
                                         </t>
                                     </tr>
                                     <t t-foreach="lines_by_group.get(g['key']) or []" t-as="ln">
                                         <tr>
-                                            <td t-attf-style="padding-left: 14px;#{' font-style: italic;' if ln.get('is_initial') else ''}">
+                                            <td t-att-class="'nm' + (' ini' if ln.get('is_initial') else '')">
                                                 <t t-esc="ln['name']"/>
                                             </td>
                                             <t t-foreach="columns" t-as="col">
                                                 <t t-set="cell" t-value="ln['values'].get(col['key']) or {}"/>
-                                                <td t-attf-style="text-align: #{'right' if col['type'] in ('monetary', 'text_right') else ('center' if col['type'] == 'date' else 'left')};#{' color: #dc3545;' if 'text-danger' in (cell.get('class') or '') else ''}">
+                                                <td t-att-class="('r' if col['type'] in ('monetary', 'text_right') else ('c' if col['type'] == 'date' else '')) + (' neg' if 'text-danger' in (cell.get('class') or '') else '')">
                                                     <t t-esc="cell.get('display') or ''"/>
                                                 </td>
                                             </t>
                                         </tr>
                                     </t>
                                 </t>
-                                <tr style="font-weight: 700; border-top: 2px solid #333;">
+                                <tr class="tot">
                                     <td>Total</td>
                                     <t t-foreach="columns" t-as="col">
                                         <t t-set="cell" t-value="data['totals'].get(col['key']) or {}"/>
-                                        <td t-attf-style="text-align: #{'right' if col['type'] in ('monetary', 'text_right') else ('center' if col['type'] == 'date' else 'left')};#{' color: #dc3545;' if 'text-danger' in (cell.get('class') or '') else ''}">
+                                        <td t-att-class="('r' if col['type'] in ('monetary', 'text_right') else ('c' if col['type'] == 'date' else '')) + (' neg' if 'text-danger' in (cell.get('class') or '') else '')">
                                             <t t-esc="cell.get('display') or ''"/>
                                         </td>
                                     </t>
