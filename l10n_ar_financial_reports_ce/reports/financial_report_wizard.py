@@ -635,14 +635,17 @@ class L10nArFinancialReportWizard(models.TransientModel):
             record = self.env['res.partner'].browse(group_key)
             label = self._partner_label(
                 record if group_key and record.exists() else None)
-        # Odoo 17 usa 'tree' como view_mode; 18+ usa 'list'.
+        # Odoo 17 usa 'tree' como view_mode; 18+ usa 'list'. La clave 'views'
+        # es obligatoria cuando la acción se pasa como dict a doAction().
         list_mode = 'tree' if release.version_info[0] < 18 else 'list'
         return {
             'type': 'ir.actions.act_window',
             'name': 'Apuntes - %s' % label,
             'res_model': 'account.move.line',
             'view_mode': '%s,form' % list_mode,
+            'views': [[False, list_mode], [False, 'form']],
             'domain': domain,
+            'target': 'current',
             'context': {'create': False},
         }
 
