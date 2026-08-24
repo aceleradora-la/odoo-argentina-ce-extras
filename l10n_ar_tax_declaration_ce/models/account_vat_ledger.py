@@ -61,6 +61,16 @@ class AccountVatLedger(models.Model):
                     rec.tax_closing_move_id = move
         return records
 
+    company_id = fields.Many2one(
+        "res.company",
+        # l10n_ar_reports (ingadhoc) define el default con
+        # res.company._company_default_get(), API eliminada del core de Odoo
+        # hace varias versiones; su port a 19 la mantiene y el form del Libro
+        # IVA explota con AttributeError al calcular defaults. Redefinimos
+        # únicamente el default (el resto de atributos se hereda igual).
+        default=lambda self: self.env.company,
+    )
+
     iva_simple_file = fields.Binary(
         string="Archivo IVA Simple (ZIP)",
         readonly=True,
