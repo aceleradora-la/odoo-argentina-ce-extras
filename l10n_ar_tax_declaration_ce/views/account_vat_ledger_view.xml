@@ -26,6 +26,33 @@
             <xpath expr="//field[@name='prorate_type']" position="after">
                 <field name="libro_iva_currency_mode"/>
             </xpath>
+            <!-- El port a Odoo 19 de l10n_ar_reports quitó de la vista los
+                 readonly="state != 'draft'", pero el modelo sigue definiendo
+                 estos campos con readonly=True + states (ignorado desde Odoo
+                 17): quedaban siempre bloqueados y no se podía cargar el
+                 período de un Libro nuevo. Restauramos el override de vista.
+                 En 17/18 la vista base ya trae el mismo atributo (idempotente). -->
+            <xpath expr="//field[@name='company_id'][@widget='selection']" position="attributes">
+                <attribute name="readonly">state != 'draft'</attribute>
+            </xpath>
+            <xpath expr="//field[@name='date_from']" position="attributes">
+                <attribute name="readonly">state != 'draft'</attribute>
+            </xpath>
+            <xpath expr="//field[@name='date_to']" position="attributes">
+                <attribute name="readonly">state != 'draft'</attribute>
+            </xpath>
+            <xpath expr="//field[@name='presented_ledger']" position="attributes">
+                <attribute name="readonly">state != 'draft'</attribute>
+            </xpath>
+            <xpath expr="//field[@name='first_page']" position="attributes">
+                <attribute name="readonly">state != 'draft'</attribute>
+            </xpath>
+            <xpath expr="//field[@name='last_page']" position="attributes">
+                <attribute name="readonly">state != 'draft'</attribute>
+            </xpath>
+            <xpath expr="//field[@name='journal_ids']" position="attributes">
+                <attribute name="readonly">state != 'draft'</attribute>
+            </xpath>
             <xpath expr="//page[@name='txt_files']" position="after">
                 <page string="IVA Simple (ZIP)" name="iva_simple">
                     <button name="compute_iva_simple_data"
