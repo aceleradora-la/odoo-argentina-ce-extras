@@ -55,19 +55,22 @@ class AfipImportWizardLine(models.TransientModel):
             else:
                 move_types = ["in_refund", "in_invoice"]
 
-            numbers = list({str(l.invoice_number).strip() for l in valid_lines})
             vats = list({str(l.partner_vat).strip() for l in valid_lines})
+            # No filtramos por l10n_latam_document_number en el dominio: en
+            # Odoo 19 es un compute no almacenado sin método search (crashea
+            # con "Cannot convert ... to SQL because it is not stored").
+            # Traemos los comprobantes de esos partners y comparamos el número
+            # en Python (una sola consulta por wizard igual que antes).
             candidates = self.env["account.move"].search(
                 [
                     ("move_type", "in", move_types),
                     ("partner_id.vat", "in", vats),
                     ("company_id", "=", wizard.company_id.id),
-                    ("l10n_latam_document_number", "in", numbers),
                 ]
             )
             # Normalizamos espacios igual que antes para evitar falsos negativos.
             existing_keys = {
-                (str(m.partner_id.vat).strip(), str(m.l10n_latam_document_number).strip())
+                (str(m.partner_id.vat).strip(), str(m.l10n_latam_document_number or "").strip())
                 for m in candidates
             }
             for line in valid_lines:
