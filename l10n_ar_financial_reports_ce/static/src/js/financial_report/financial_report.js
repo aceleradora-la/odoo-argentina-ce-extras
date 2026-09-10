@@ -48,6 +48,7 @@ export class ArFinancialReport extends Component {
             customTo: "",
             analyticFilter: "",
             analyticPlanId: 0,
+            pendingAnalyticIds: [],
             menuPos: { top: 0, left: 0 },
         });
         onWillStart(async () => {
@@ -205,6 +206,8 @@ export class ArFinancialReport extends Component {
         }
         this._placeMenu(ev);
         this.closeColumnsMenu();
+        // Selección diferida: se edita local y se aplica con el botón.
+        this.state.pendingAnalyticIds = [...(this.header.analytic_ids || [])];
         this.state.showAnalyticMenu = true;
     }
     togglePeriodMenu(ev) {
@@ -289,15 +292,46 @@ export class ArFinancialReport extends Component {
     onAnalyticPlanChange(ev) {
         this.state.analyticPlanId = parseInt(ev.target.value, 10) || 0;
     }
-    async toggleAnalytic(id) {
-        const ids = (this.header.analytic_ids || []).slice();
+    toggleAnalytic(id) {
+        const ids = this.state.pendingAnalyticIds;
         const index = ids.indexOf(id);
         if (index === -1) {
             ids.push(id);
         } else {
             ids.splice(index, 1);
         }
-        await this.updateFilter("analytic_account_ids", ids);
+    }
+    get filteredAnalyticIds() {
+        const ids = [];
+        for (const group of this.groupedAnalyticOptions) {
+            for (const an of group.options) {
+                ids.push(an.id);
+            }
+        }
+        return ids;
+    }
+    selectAllFilteredAnalytics() {
+        const selected = new Set(this.state.pendingAnalyticIds);
+        for (const id of this.filteredAnalyticIds) {
+            selected.add(id);
+        }
+        this.state.pendingAnalyticIds = [...selected];
+    }
+    clearFilteredAnalytics() {
+        const filtered = new Set(this.filteredAnalyticIds);
+        this.state.pendingAnalyticIds =
+            this.state.pendingAnalyticIds.filter((id) => !filtered.has(id));
+    }
+    get pendingAnalyticsChanged() {
+        const current = new Set(this.header ? this.header.analytic_ids : []);
+        const pending = this.state.pendingAnalyticIds;
+        return pending.length !== current.size ||
+            pending.some((id) => !current.has(id));
+    }
+    async applyAnalytics() {
+        this.closeColumnsMenu();
+        await this.updateFilter(
+            "analytic_account_ids", this.state.pendingAnalyticIds);
     }
 
     toggleColumn(key) {
