@@ -317,6 +317,12 @@
                             </t>
                         </select>
                     </li>
+                    <li class="px-2 pb-1 d-flex gap-3 small">
+                        <a href="#" class="text-decoration-none"
+                           t-on-click.prevent="selectAllFilteredAnalytics">Seleccionar todo</a>
+                        <a href="#" class="text-decoration-none"
+                           t-on-click.prevent="clearFilteredAnalytics">Ninguna</a>
+                    </li>
                     <t t-foreach="groupedAnalyticOptions" t-as="angrp" t-key="angrp_index">
                         <li class="dropdown-header o_arfr_plan_header"><t t-esc="angrp.plan_name"/></li>
                         <t t-foreach="angrp.options" t-as="an" t-key="an.id">
@@ -324,7 +330,7 @@
                                 <div class="dropdown-item form-check mb-0">
                                     <input type="checkbox" class="form-check-input"
                                            t-att-id="'arfr_an_' + an.id"
-                                           t-att-checked="header.analytic_ids.includes(an.id)"
+                                           t-att-checked="state.pendingAnalyticIds.includes(an.id)"
                                            t-on-change="() => this.toggleAnalytic(an.id)"/>
                                     <label class="form-check-label" t-att-for="'arfr_an_' + an.id">
                                         <t t-esc="an.name"/>
@@ -335,6 +341,13 @@
                     </t>
                     <li class="px-2 text-muted small" t-if="!groupedAnalyticOptions.length">
                         Sin resultados
+                    </li>
+                    <li class="o_arfr_menu_footer pt-2">
+                        <button class="btn btn-sm btn-primary w-100"
+                                t-att-disabled="!pendingAnalyticsChanged"
+                                t-on-click="applyAnalytics">
+                            Aplicar<t t-if="state.pendingAnalyticIds.length"> (<t t-esc="state.pendingAnalyticIds.length"/>)</t>
+                        </button>
                     </li>
                 </ul>
             </t>
