@@ -104,6 +104,25 @@
     color: var(--o-main-text-color, #495057);
 }
 
+/* Selector de período (Mes / Trimestre / Año / Personalizado). */
+.o_arfr_period_menu {
+    min-width: 310px;
+    max-width: 340px;
+}
+.o_arfr_period_menu .o_arfr_period_name {
+    color: inherit;
+}
+.o_arfr_period_menu .o_arfr_period_label {
+    color: inherit;
+    min-width: 130px;
+}
+.o_arfr_period_menu .o_arfr_period_label:hover {
+    text-decoration: underline;
+}
+.o_arfr_period_menu .o_arfr_period_row:hover {
+    background-color: rgba(0, 0, 0, 0.04);
+}
+
 /* Encabezados de plan en el menú de analíticas. */
 .o_arfr_columns_menu .o_arfr_plan_header {
     font-weight: 600;
