@@ -40,6 +40,7 @@ export class ArFinancialReport extends Component {
             loadingGroups: {},
             hiddenCols: {},
             showColumnsMenu: false,
+            showAnalyticMenu: false,
             menuPos: { top: 0, left: 0 },
         });
         onWillStart(async () => {
@@ -133,18 +134,44 @@ export class ArFinancialReport extends Component {
         if (!this.header) return [];
         return this.header.columns.filter((c) => !this.state.hiddenCols[c.key]);
     }
+    get isPl() {
+        return !!this.header && this.header.report_type === "profit_loss";
+    }
+    get hasTotals() {
+        return !!this.totals && Object.keys(this.totals).length > 0;
+    }
+    /** Corridas contiguas de col.group sobre las columnas VISIBLES, para la
+     *  1ª fila del encabezado (ocultar columnas achica el colspan). */
+    get visibleColumnGroups() {
+        const groups = [];
+        for (const col of this.visibleColumns) {
+            const label = col.group || "";
+            if (groups.length && groups[groups.length - 1].label === label) {
+                groups[groups.length - 1].colspan++;
+            } else {
+                groups.push({ label, colspan: 1 });
+            }
+        }
+        return groups;
+    }
     get filteredGroups() {
+        // En el Estado de resultados el buscador filtra solo el detalle
+        // (visibleLines): sacar líneas de estructura rompería las fórmulas.
+        if (this.isPl) return this.groups;
         const text = this.state.filterText.trim().toUpperCase();
         if (!text) return this.groups;
         return this.groups.filter((g) => (g.name || "").toUpperCase().includes(text));
     }
+    visibleLines(g) {
+        const lines = this.state.lines[g.key] || [];
+        if (!this.isPl) return lines;
+        const text = this.state.filterText.trim().toUpperCase();
+        if (!text) return lines;
+        return lines.filter((ln) => (ln.name || "").toUpperCase().includes(text));
+    }
 
     // --- columnas -------------------------------------------------------
-    toggleColumnsMenu(ev) {
-        if (this.state.showColumnsMenu) {
-            this.state.showColumnsMenu = false;
-            return;
-        }
+    _placeMenu(ev) {
         // Menú con position:fixed: se ubica bajo el botón y no lo recorta
         // el overflow de la toolbar.
         const rect = ev.currentTarget.getBoundingClientRect();
@@ -154,10 +181,63 @@ export class ArFinancialReport extends Component {
             left: Math.round(Math.max(8,
                 Math.min(rect.left, window.innerWidth - width - 8))),
         };
+    }
+    toggleColumnsMenu(ev) {
+        if (this.state.showColumnsMenu) {
+            this.state.showColumnsMenu = false;
+            return;
+        }
+        this._placeMenu(ev);
+        this.state.showAnalyticMenu = false;
         this.state.showColumnsMenu = true;
+    }
+    toggleAnalyticMenu(ev) {
+        if (this.state.showAnalyticMenu) {
+            this.state.showAnalyticMenu = false;
+            return;
+        }
+        this._placeMenu(ev);
+        this.state.showColumnsMenu = false;
+        this.state.showAnalyticMenu = true;
     }
     closeColumnsMenu() {
         this.state.showColumnsMenu = false;
+        this.state.showAnalyticMenu = false;
+    }
+
+    /** Menú de columnas por GRUPO (períodos) para el Estado de resultados:
+     *  con 13 períodos x analíticas la lista plana es inusable. */
+    get columnMenuGroups() {
+        const out = [];
+        for (const col of (this.header ? this.header.columns : [])) {
+            const label = col.group || "";
+            let group = out.find((x) => x.label === label);
+            if (!group) {
+                group = { label, keys: [] };
+                out.push(group);
+            }
+            group.keys.push(col.key);
+        }
+        return out;
+    }
+    isGroupVisible(group) {
+        return group.keys.some((k) => !this.state.hiddenCols[k]);
+    }
+    toggleColumnGroup(group) {
+        const hide = this.isGroupVisible(group);
+        for (const key of group.keys) {
+            this.state.hiddenCols[key] = hide;
+        }
+    }
+    async toggleAnalytic(id) {
+        const ids = (this.header.analytic_ids || []).slice();
+        const index = ids.indexOf(id);
+        if (index === -1) {
+            ids.push(id);
+        } else {
+            ids.splice(index, 1);
+        }
+        await this.updateFilter("analytic_account_ids", ids);
     }
 
     toggleColumn(key) {
@@ -182,21 +262,31 @@ export class ArFinancialReport extends Component {
     }
 
     // --- drilldown a los apuntes (estilo Enterprise) --------------------
-    isDrillable(col, cell) {
-        return col.type === "monetary" && cell && cell.display;
+    isDrillable(g, col, cell) {
+        // Las filas fórmula del Estado de resultados no drillan.
+        return g.drillable !== false && col.type === "monetary" &&
+            cell && cell.display;
     }
     onGroupCellClick(g, col, ev) {
         const cell = this.getCell(g, col);
-        if (!this.isDrillable(col, cell)) {
+        if (!this.isDrillable(g, col, cell)) {
             return; // deja propagar: el click pliega/despliega la fila
         }
         ev.stopPropagation();
         this.openGroupCell(g, col);
     }
-    async openGroupCell(g, col) {
+    onLineCellClick(g, ln, col, ev) {
+        const cell = this.getCell(ln, col);
+        if (!ln.line_key || col.type !== "monetary" || !cell.display) {
+            return;
+        }
+        ev.stopPropagation();
+        this.openGroupCell(g, col, ln.line_key);
+    }
+    async openGroupCell(g, col, lineKey = null) {
         try {
             const action = await this._callWizard(
-                "action_open_cell", [g.key, col.key]);
+                "action_open_cell", [g.key, col.key, lineKey]);
             await this.action.doAction(action);
         } catch (error) {
             this._notifyError(error);
@@ -214,6 +304,10 @@ export class ArFinancialReport extends Component {
 
     // --- desplegar grupos ----------------------------------------------
     async toggleGroup(key) {
+        const group = this.groups.find((g) => g.key === key);
+        if (group && group.has_lines === false) {
+            return;
+        }
         if (this.state.expanded[key]) {
             this.state.expanded[key] = false;
             return;
@@ -242,7 +336,9 @@ export class ArFinancialReport extends Component {
             this.state.lines = res;
             const expanded = {};
             for (const g of this.groups) {
-                expanded[g.key] = true;
+                if (g.has_lines !== false) {
+                    expanded[g.key] = true;
+                }
             }
             this.state.expanded = expanded;
         } catch (error) {
@@ -280,6 +376,12 @@ export class ArFinancialReport extends Component {
         const value = parseInt(ev.target.value, 10);
         if (value && value > 0) {
             this.updateFilter("period_length", value);
+        }
+    }
+    onComparisonPeriodsChange(ev) {
+        const value = parseInt(ev.target.value, 10);
+        if (!isNaN(value) && value >= 0) {
+            this.updateFilter("comparison_periods", value);
         }
     }
 

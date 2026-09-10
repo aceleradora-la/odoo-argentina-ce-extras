@@ -41,10 +41,10 @@
                     <group>
                         <field name="date_from"
                                invisible="report_type in ('aged_receivable', 'aged_payable')"
-                               required="report_type in ('partner_ledger', 'general_ledger')"/>
+                               required="report_type in ('partner_ledger', 'general_ledger', 'profit_loss')"/>
                         <field name="date_to"
                                invisible="report_type in ('aged_receivable', 'aged_payable')"
-                               required="report_type in ('partner_ledger', 'general_ledger')"/>
+                               required="report_type in ('partner_ledger', 'general_ledger', 'profit_loss')"/>
                         <field name="date_at"
                                invisible="report_type in ('partner_ledger', 'general_ledger')"
                                required="report_type in ('aged_receivable', 'aged_payable')"/>
@@ -53,9 +53,26 @@
                         <field name="unreconciled_only"
                                invisible="report_type != 'partner_ledger'"/>
                         <field name="based_on"
-                               invisible="report_type in ('partner_ledger', 'general_ledger')"/>
+                               invisible="report_type not in ('aged_receivable', 'aged_payable')"/>
                         <field name="period_length"
-                               invisible="report_type in ('partner_ledger', 'general_ledger')"/>
+                               invisible="report_type not in ('aged_receivable', 'aged_payable')"/>
+                        <field name="structure_id"
+                               invisible="report_type != 'profit_loss'"
+                               required="report_type == 'profit_loss'"
+                               options="{'no_create': True}"/>
+                        <field name="comparison_mode"
+                               invisible="report_type != 'profit_loss'"/>
+                        <field name="comparison_periods"
+                               invisible="report_type != 'profit_loss' or comparison_mode not in ('previous_period', 'same_last_year')"/>
+                        <field name="comparison_date_from"
+                               invisible="report_type != 'profit_loss' or comparison_mode != 'custom'"/>
+                        <field name="comparison_date_to"
+                               invisible="report_type != 'profit_loss' or comparison_mode != 'custom'"/>
+                        <field name="period_order"
+                               invisible="report_type != 'profit_loss' or comparison_mode == 'none'"/>
+                        <field name="analytic_account_ids" widget="many2many_tags"
+                               invisible="report_type != 'profit_loss'"
+                               options="{'no_create': True}"/>
                     </group>
                 </group>
                 <footer>
@@ -93,6 +110,15 @@
         <field name="context">{'default_report_type': 'aged_receivable'}</field>
     </record>
 
+    <record id="action_profit_loss" model="ir.actions.act_window">
+        <field name="name">Estado de resultados</field>
+        <field name="res_model">l10n_ar.financial.report.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="view_id" ref="view_financial_report_wizard_form"/>
+        <field name="target">new</field>
+        <field name="context">{'default_report_type': 'profit_loss'}</field>
+    </record>
+
     <record id="action_aged_payable" model="ir.actions.act_window">
         <field name="name">Cuenta por pagar vencida</field>
         <field name="res_model">l10n_ar.financial.report.wizard</field>
@@ -105,6 +131,9 @@
     <!-- Nombres diferenciados de los reportes estándar con "(Dinámico)".
          _place_menus() los reubica debajo de su equivalente estándar si un
          módulo de reportes lo provee; si no, quedan acá bajo Reportes. -->
+    <menuitem id="menu_profit_loss" name="Estado de resultados (Dinámico)"
+              parent="account.menu_finance_reports" action="action_profit_loss"
+              groups="account.group_account_readonly" sequence="29"/>
     <menuitem id="menu_partner_ledger" name="Libro mayor de la empresa (Dinámico)"
               parent="account.menu_finance_reports" action="action_partner_ledger"
               groups="account.group_account_readonly" sequence="30"/>

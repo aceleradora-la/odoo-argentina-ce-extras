@@ -104,6 +104,12 @@
     color: var(--o-main-text-color, #495057);
 }
 
+/* Filas "Total destacado" del Estado de resultados. */
+.o_arfr_report .o_arfr_row_total td {
+    font-weight: 700;
+    background-color: rgba(0, 0, 0, 0.045);
+}
+
 /* Celdas con drilldown a los apuntes. */
 .o_arfr_report .o_arfr_drill:hover {
     text-decoration: underline;

@@ -16,7 +16,8 @@ class FinancialReportController(http.Controller):
     @http.route('/l10n_ar_financial_reports_ce/xlsx/<int:wizard_id>',
                 type='http', auth='user')
     def export_xlsx(self, wizard_id, **kwargs):
-        if not request.env.user.has_group('account.group_account_readonly'):
+        if not (request.env.user.has_group('account.group_account_readonly')
+                or request.env.user.has_group('account.group_account_invoice')):
             raise Forbidden()
         wizard = request.env['l10n_ar.financial.report.wizard'].browse(wizard_id)
         if not wizard.exists():
@@ -76,15 +77,29 @@ class FinancialReportController(http.Controller):
             filters_line += ' - Filtro: %s' % header['filter_text']
         sheet.write(3, 0, filters_line)
 
+        # Fila de grupos (períodos) + fila de etiquetas de columna.
         header_row = 5
         sheet.write(header_row, 0, '', head_fmt)
+        col_idx = 1
+        for group in header.get('column_groups') or []:
+            span = group.get('colspan') or 1
+            if span > 1:
+                # merge_range con una sola celda lanza excepción.
+                sheet.merge_range(header_row, col_idx,
+                                  header_row, col_idx + span - 1,
+                                  group.get('label') or '', head_fmt)
+            else:
+                sheet.write(header_row, col_idx,
+                            group.get('label') or '', head_fmt)
+            col_idx += span
+        sheet.write(header_row + 1, 0, '', head_fmt)
         for idx, column in enumerate(columns, start=1):
-            sheet.write(header_row, idx, column['label'], head_fmt)
+            sheet.write(header_row + 1, idx, column['label'], head_fmt)
         sheet.set_column(0, 0, 45)
         sheet.set_column(1, len(columns), 16)
-        sheet.freeze_panes(header_row + 1, 1)
+        sheet.freeze_panes(header_row + 2, 1)
 
-        row = header_row + 1
+        row = header_row + 2
         for group in data['groups']:
             sheet.write(row, 0, group['name'], group_fmt)
             for idx, column in enumerate(columns, start=1):
@@ -99,10 +114,12 @@ class FinancialReportController(http.Controller):
                                line_fmt, line_money, line_money_neg)
                 row += 1
 
-        sheet.write(row, 0, 'Total', total_fmt)
-        for idx, column in enumerate(columns, start=1):
-            write_cell(row, idx, column, data['totals'].get(column['key']),
-                       total_fmt, total_money, total_money_neg)
+        if data['totals']:
+            sheet.write(row, 0, 'Total', total_fmt)
+            for idx, column in enumerate(columns, start=1):
+                write_cell(row, idx, column,
+                           data['totals'].get(column['key']),
+                           total_fmt, total_money, total_money_neg)
 
         workbook.close()
         buffer.seek(0)

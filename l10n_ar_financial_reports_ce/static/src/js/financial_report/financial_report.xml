@@ -53,6 +53,34 @@
                             <option value="receivable" t-att-selected="header.account_type_filter === 'receivable'">Cuenta: Por cobrar</option>
                             <option value="payable" t-att-selected="header.account_type_filter === 'payable'">Cuenta: Por pagar</option>
                         </select>
+                        <!-- Estado de resultados: comparación / orden / analíticas -->
+                        <t t-if="header.report_type === 'profit_loss'">
+                            <select class="form-select form-select-sm w-auto"
+                                    t-on-change="(ev) => this.updateFilter('comparison_mode', ev.target.value)">
+                                <option value="none" t-att-selected="header.comparison_mode === 'none'">Sin comparación</option>
+                                <option value="previous_period" t-att-selected="header.comparison_mode === 'previous_period'">Períodos anteriores</option>
+                                <option value="same_last_year" t-att-selected="header.comparison_mode === 'same_last_year'">Mismo período años anteriores</option>
+                                <option value="custom" t-att-selected="header.comparison_mode === 'custom'">Fechas personalizadas</option>
+                            </select>
+                            <div class="input-group input-group-sm w-auto" style="max-width: 130px;"
+                                 t-if="header.comparison_mode === 'previous_period' || header.comparison_mode === 'same_last_year'">
+                                <input type="number" min="0" class="form-control form-control-sm"
+                                       t-att-value="header.comparison_periods"
+                                       t-on-change="onComparisonPeriodsChange"/>
+                                <span class="input-group-text">Períodos</span>
+                            </div>
+                            <select class="form-select form-select-sm w-auto"
+                                    t-if="header.comparison_mode !== 'none'"
+                                    t-on-change="(ev) => this.updateFilter('period_order', ev.target.value)">
+                                <option value="desc" t-att-selected="header.period_order === 'desc'">Descendente</option>
+                                <option value="asc" t-att-selected="header.period_order === 'asc'">Ascendente</option>
+                            </select>
+                            <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button"
+                                    t-if="header.analytic_options.length"
+                                    t-on-click="toggleAnalyticMenu">
+                                Analítica<t t-if="header.analytic_ids.length"> (<t t-esc="header.analytic_ids.length"/>)</t>
+                            </button>
+                        </t>
                         <!-- Conciliación (solo libro mayor de la empresa) -->
                         <select class="form-select form-select-sm w-auto"
                                 t-if="header.report_type === 'partner_ledger'"
@@ -94,9 +122,11 @@
                         <thead>
                             <tr>
                                 <th class="o_arfr_col_name o_arfr_th_blank"/>
-                                <th t-att-colspan="visibleColumns.length" class="text-center o_arfr_period">
-                                    <t t-esc="header.period_label"/>
-                                </th>
+                                <t t-foreach="visibleColumnGroups" t-as="cg" t-key="cg_index">
+                                    <th t-att-colspan="cg.colspan" class="text-center o_arfr_period">
+                                        <t t-esc="cg.label"/>
+                                    </th>
+                                </t>
                             </tr>
                             <tr>
                                 <th class="o_arfr_col_name"/>
@@ -107,25 +137,28 @@
                         </thead>
                         <tbody>
                             <t t-foreach="filteredGroups" t-as="g" t-key="g.key">
-                                <tr class="o_arfr_group_row" t-on-click="() => this.toggleGroup(g.key)">
+                                <tr t-att-class="'o_arfr_group_row' + (g.style === 'total' ? ' o_arfr_row_total' : '')"
+                                    t-on-click="() => this.toggleGroup(g.key)">
                                     <td class="o_arfr_col_name" t-att-title="g.name">
                                         <div class="o_arfr_name">
-                                            <i t-att-class="'fa fa-fw me-1 text-muted ' + (state.expanded[g.key] ? 'fa-caret-down' : 'fa-caret-right')"/>
+                                            <i t-if="g.has_lines !== false"
+                                               t-att-class="'fa fa-fw me-1 text-muted ' + (state.expanded[g.key] ? 'fa-caret-down' : 'fa-caret-right')"/>
+                                            <span t-else="" class="fa fa-fw me-1"/>
                                             <span class="o_arfr_name_text"><t t-esc="g.name"/></span>
                                             <i class="fa fa-spinner fa-spin ms-2 text-muted" t-if="state.loadingGroups[g.key]"/>
                                         </div>
                                     </td>
                                     <t t-foreach="visibleColumns" t-as="col" t-key="col.key">
                                         <t t-set="cell" t-value="getCell(g, col)"/>
-                                        <td t-att-class="cellClass(col, cell) + (isDrillable(col, cell) ? ' o_arfr_drill' : '')"
-                                            t-att-title="isDrillable(col, cell) ? 'Ver apuntes' : ''"
+                                        <td t-att-class="cellClass(col, cell) + (isDrillable(g, col, cell) ? ' o_arfr_drill' : '')"
+                                            t-att-title="isDrillable(g, col, cell) ? 'Ver apuntes' : ''"
                                             t-on-click="(ev) => this.onGroupCellClick(g, col, ev)">
                                             <t t-esc="cell.display or ''"/>
                                         </td>
                                     </t>
                                 </tr>
                                 <t t-if="state.expanded[g.key]">
-                                    <tr t-foreach="state.lines[g.key] or []" t-as="ln"
+                                    <tr t-foreach="visibleLines(g)" t-as="ln"
                                         t-key="ln_index" class="o_arfr_line_row small">
                                         <td class="o_arfr_col_name"
                                             t-att-class="ln.is_initial ? 'fst-italic' : ''"
@@ -142,13 +175,17 @@
                                         </td>
                                         <t t-foreach="visibleColumns" t-as="col" t-key="col.key">
                                             <t t-set="cell" t-value="getCell(ln, col)"/>
-                                            <td t-att-class="cellClass(col, cell)"><t t-esc="cell.display or ''"/></td>
+                                            <td t-att-class="cellClass(col, cell) + (ln.line_key and col.type === 'monetary' and cell.display ? ' o_arfr_drill' : '')"
+                                                t-att-title="ln.line_key and col.type === 'monetary' and cell.display ? 'Ver apuntes' : ''"
+                                                t-on-click="(ev) => this.onLineCellClick(g, ln, col, ev)">
+                                                <t t-esc="cell.display or ''"/>
+                                            </td>
                                         </t>
                                     </tr>
                                 </t>
                             </t>
                         </tbody>
-                        <tfoot>
+                        <tfoot t-if="hasTotals">
                             <tr class="fw-bold o_arfr_total_row">
                                 <td class="o_arfr_col_name">Total</td>
                                 <t t-foreach="visibleColumns" t-as="col" t-key="col.key">
@@ -168,18 +205,36 @@
                     t-attf-style="top: {{state.menuPos.top}}px; left: {{state.menuPos.left}}px;">
                     <li><a class="dropdown-item" href="#" t-on-click.prevent="showAllColumns">Mostrar todas</a></li>
                     <li><hr class="dropdown-divider"/></li>
-                    <t t-foreach="header.columns" t-as="col" t-key="col.key">
-                        <li>
-                            <div class="dropdown-item form-check mb-0">
-                                <input type="checkbox" class="form-check-input"
-                                       t-att-id="'arfr_col_' + col.key"
-                                       t-att-checked="!state.hiddenCols[col.key]"
-                                       t-on-change="() => this.toggleColumn(col.key)"/>
-                                <label class="form-check-label" t-att-for="'arfr_col_' + col.key">
-                                    <t t-esc="col.label"/>
-                                </label>
-                            </div>
-                        </li>
+                    <!-- Estado de resultados: ocultar por período completo -->
+                    <t t-if="isPl">
+                        <t t-foreach="columnMenuGroups" t-as="cmg" t-key="cmg_index">
+                            <li>
+                                <div class="dropdown-item form-check mb-0">
+                                    <input type="checkbox" class="form-check-input"
+                                           t-att-id="'arfr_cg_' + cmg_index"
+                                           t-att-checked="isGroupVisible(cmg)"
+                                           t-on-change="() => this.toggleColumnGroup(cmg)"/>
+                                    <label class="form-check-label" t-att-for="'arfr_cg_' + cmg_index">
+                                        <t t-esc="cmg.label"/>
+                                    </label>
+                                </div>
+                            </li>
+                        </t>
+                    </t>
+                    <t t-else="">
+                        <t t-foreach="header.columns" t-as="col" t-key="col.key">
+                            <li>
+                                <div class="dropdown-item form-check mb-0">
+                                    <input type="checkbox" class="form-check-input"
+                                           t-att-id="'arfr_col_' + col.key"
+                                           t-att-checked="!state.hiddenCols[col.key]"
+                                           t-on-change="() => this.toggleColumn(col.key)"/>
+                                    <label class="form-check-label" t-att-for="'arfr_col_' + col.key">
+                                        <t t-esc="col.label"/>
+                                    </label>
+                                </div>
+                            </li>
+                        </t>
                     </t>
                     <li><hr class="dropdown-divider"/></li>
                     <li>
@@ -190,6 +245,28 @@
                             <label class="form-check-label" for="arfr_show_details">Detalle en PDF/Excel</label>
                         </div>
                     </li>
+                </ul>
+            </t>
+
+            <!-- Menú de analíticas flotante (Estado de resultados). -->
+            <t t-if="state.showAnalyticMenu and header">
+                <div class="o_arfr_menu_backdrop" t-on-click="closeColumnsMenu"/>
+                <ul class="dropdown-menu show p-2 o_arfr_columns_menu"
+                    t-attf-style="top: {{state.menuPos.top}}px; left: {{state.menuPos.left}}px;">
+                    <li class="dropdown-header">Subcolumnas por cuenta analítica</li>
+                    <t t-foreach="header.analytic_options" t-as="an" t-key="an.id">
+                        <li>
+                            <div class="dropdown-item form-check mb-0">
+                                <input type="checkbox" class="form-check-input"
+                                       t-att-id="'arfr_an_' + an.id"
+                                       t-att-checked="header.analytic_ids.includes(an.id)"
+                                       t-on-change="() => this.toggleAnalytic(an.id)"/>
+                                <label class="form-check-label" t-att-for="'arfr_an_' + an.id">
+                                    <t t-esc="an.name"/>
+                                </label>
+                            </div>
+                        </li>
+                    </t>
                 </ul>
             </t>
         </div>
