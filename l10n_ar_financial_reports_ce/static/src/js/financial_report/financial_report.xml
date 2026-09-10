@@ -254,19 +254,40 @@
                 <ul class="dropdown-menu show p-2 o_arfr_columns_menu"
                     t-attf-style="top: {{state.menuPos.top}}px; left: {{state.menuPos.left}}px;">
                     <li class="dropdown-header">Subcolumnas por cuenta analítica</li>
-                    <t t-foreach="header.analytic_options" t-as="an" t-key="an.id">
-                        <li>
-                            <div class="dropdown-item form-check mb-0">
-                                <input type="checkbox" class="form-check-input"
-                                       t-att-id="'arfr_an_' + an.id"
-                                       t-att-checked="header.analytic_ids.includes(an.id)"
-                                       t-on-change="() => this.toggleAnalytic(an.id)"/>
-                                <label class="form-check-label" t-att-for="'arfr_an_' + an.id">
-                                    <t t-esc="an.name"/>
-                                </label>
-                            </div>
-                        </li>
+                    <li class="px-2 pb-1">
+                        <input type="text" class="form-control form-control-sm"
+                               placeholder="Buscar cuenta..." t-model="state.analyticFilter"/>
+                    </li>
+                    <li class="px-2 pb-2" t-if="analyticPlans.length > 1">
+                        <select class="form-select form-select-sm" t-on-change="onAnalyticPlanChange">
+                            <option value="0" t-att-selected="!state.analyticPlanId">Todos los planes</option>
+                            <t t-foreach="analyticPlans" t-as="plan" t-key="plan.id">
+                                <option t-att-value="plan.id"
+                                        t-att-selected="state.analyticPlanId === plan.id">
+                                    <t t-esc="plan.name"/>
+                                </option>
+                            </t>
+                        </select>
+                    </li>
+                    <t t-foreach="groupedAnalyticOptions" t-as="angrp" t-key="angrp_index">
+                        <li class="dropdown-header o_arfr_plan_header"><t t-esc="angrp.plan_name"/></li>
+                        <t t-foreach="angrp.options" t-as="an" t-key="an.id">
+                            <li>
+                                <div class="dropdown-item form-check mb-0">
+                                    <input type="checkbox" class="form-check-input"
+                                           t-att-id="'arfr_an_' + an.id"
+                                           t-att-checked="header.analytic_ids.includes(an.id)"
+                                           t-on-change="() => this.toggleAnalytic(an.id)"/>
+                                    <label class="form-check-label" t-att-for="'arfr_an_' + an.id">
+                                        <t t-esc="an.name"/>
+                                    </label>
+                                </div>
+                            </li>
+                        </t>
                     </t>
+                    <li class="px-2 text-muted small" t-if="!groupedAnalyticOptions.length">
+                        Sin resultados
+                    </li>
                 </ul>
             </t>
         </div>

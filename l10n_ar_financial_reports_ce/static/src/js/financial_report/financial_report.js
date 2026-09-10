@@ -41,6 +41,8 @@ export class ArFinancialReport extends Component {
             hiddenCols: {},
             showColumnsMenu: false,
             showAnalyticMenu: false,
+            analyticFilter: "",
+            analyticPlanId: 0,
             menuPos: { top: 0, left: 0 },
         });
         onWillStart(async () => {
@@ -228,6 +230,45 @@ export class ArFinancialReport extends Component {
         for (const key of group.keys) {
             this.state.hiddenCols[key] = hide;
         }
+    }
+    /** Planes analíticos presentes en las opciones (para el filtro). */
+    get analyticPlans() {
+        const seen = {};
+        const out = [];
+        for (const an of (this.header ? this.header.analytic_options : [])) {
+            const id = an.plan_id || 0;
+            if (!seen[id]) {
+                seen[id] = true;
+                out.push({ id, name: an.plan_name || "Sin plan" });
+            }
+        }
+        return out;
+    }
+    /** Cuentas analíticas agrupadas por plan, aplicando el buscador y el
+     *  filtro de plan del menú. */
+    get groupedAnalyticOptions() {
+        const text = this.state.analyticFilter.trim().toUpperCase();
+        const planId = this.state.analyticPlanId;
+        const groups = [];
+        for (const an of (this.header ? this.header.analytic_options : [])) {
+            if (planId && (an.plan_id || 0) !== planId) {
+                continue;
+            }
+            if (text && !(an.name || "").toUpperCase().includes(text)) {
+                continue;
+            }
+            const label = an.plan_name || "Sin plan";
+            let group = groups.find((x) => x.plan_name === label);
+            if (!group) {
+                group = { plan_name: label, options: [] };
+                groups.push(group);
+            }
+            group.options.push(an);
+        }
+        return groups;
+    }
+    onAnalyticPlanChange(ev) {
+        this.state.analyticPlanId = parseInt(ev.target.value, 10) || 0;
     }
     async toggleAnalytic(id) {
         const ids = (this.header.analytic_ids || []).slice();
