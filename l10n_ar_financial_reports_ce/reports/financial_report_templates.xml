@@ -45,6 +45,15 @@
                             <thead>
                                 <tr>
                                     <th/>
+                                    <t t-foreach="header.get('column_groups') or []" t-as="cg">
+                                        <th class="c" t-att-colspan="cg['colspan']"
+                                            style="border-bottom: 1px solid #999; font-weight: 600;">
+                                            <t t-esc="cg['label']"/>
+                                        </th>
+                                    </t>
+                                </tr>
+                                <tr>
+                                    <th/>
                                     <t t-foreach="columns" t-as="col">
                                         <th t-att-class="'r' if col['type'] in ('monetary', 'text_right') else ('c' if col['type'] == 'date' else '')">
                                             <t t-esc="col['label']"/>
@@ -54,7 +63,7 @@
                             </thead>
                             <tbody>
                                 <t t-foreach="data['groups']" t-as="g">
-                                    <tr class="grp">
+                                    <tr t-att-class="'grp' + (' tot' if g.get('style') == 'total' else '')">
                                         <td><t t-esc="g['name']"/></td>
                                         <t t-foreach="columns" t-as="col">
                                             <t t-set="cell" t-value="g['values'].get(col['key']) or {}"/>
@@ -77,7 +86,7 @@
                                         </tr>
                                     </t>
                                 </t>
-                                <tr class="tot">
+                                <tr class="tot" t-if="data['totals']">
                                     <td>Total</td>
                                     <t t-foreach="columns" t-as="col">
                                         <t t-set="cell" t-value="data['totals'].get(col['key']) or {}"/>

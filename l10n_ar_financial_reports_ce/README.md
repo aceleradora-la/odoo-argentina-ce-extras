@@ -1,6 +1,6 @@
 # Reportes Financieros Interactivos (Community)
 
-Reportes contables estilo Enterprise para **Odoo 18 Community**, en pantalla
+Reportes contables estilo Enterprise para **Odoo 19 Community**, en pantalla
 (componente OWL) en vez de exportar siempre a PDF:
 
 - **Libro mayor de la empresa** (partner ledger): agrupado por contacto
@@ -12,6 +12,16 @@ Reportes contables estilo Enterprise para **Odoo 18 Community**, en pantalla
   de saldos con tramos configurables (A la fecha / 1-30 / 31-60 / 61-90 /
   91-120 / Antiguos), según fecha límite o fecha de factura, a cualquier
   fecha de corte (reconstruye el residual con las conciliaciones parciales).
+- **Estado de resultados**: estructura de líneas configurable (Configuración
+  → Estructuras Estado de Resultados: secciones por prefijos de cuenta y
+  líneas fórmula tipo `VN + CV`, con una estructura AR precargada),
+  comparación con N períodos anteriores / mismo período años anteriores /
+  fechas personalizadas (orden asc/desc), y subcolumnas por **cuenta
+  analítica** dentro de cada período (más el total del período completo,
+  leyendo `analytic_distribution`). Para comparaciones largas con
+  analíticas, el export recomendado es Excel (el PDF apaisado puede quedar
+  angosto). Nota: al mezclar compañías con monedas distintas los importes
+  se suman en la moneda de cada compañía.
 
 ## Características
 
@@ -31,7 +41,7 @@ Reportes contables estilo Enterprise para **Odoo 18 Community**, en pantalla
 
 ## Requisitos
 
-- Odoo 18 Community (`account`, `web`).
+- Odoo 19 Community (`account`, `web`).
 - `pip install xlsxwriter` (Excel).
 - `wkhtmltopdf` (PDF).
 
