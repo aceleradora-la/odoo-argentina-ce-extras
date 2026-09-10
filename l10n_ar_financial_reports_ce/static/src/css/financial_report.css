@@ -127,6 +127,14 @@
     background-color: rgba(0, 0, 0, 0.04);
 }
 
+/* Pie fijo del menú de analíticas (el listado scrollea, Aplicar no). */
+.o_arfr_columns_menu .o_arfr_menu_footer {
+    position: sticky;
+    bottom: -0.5rem;
+    background-color: var(--o-view-background-color, #fff);
+    padding-bottom: 0.25rem;
+}
+
 /* Encabezados de plan en el menú de analíticas. */
 .o_arfr_columns_menu .o_arfr_plan_header {
     font-weight: 600;
