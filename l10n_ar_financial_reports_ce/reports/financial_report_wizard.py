@@ -823,17 +823,26 @@ class L10nArFinancialReportWizard(models.TransientModel):
 
     def _pl_analytic_options(self):
         """Cuentas analíticas ofrecidas en la toolbar, con su plan (para
-        agrupar y filtrar como Enterprise). Vacío si el usuario no tiene
-        acceso al modelo analítico."""
+        agrupar y filtrar como Enterprise). Se lee vía read(): el nombre del
+        many2one se resuelve aunque el usuario no tenga acceso directo al
+        modelo de planes. Vacío si no puede leer las cuentas analíticas."""
         try:
             records = self.env['account.analytic.account'].search(
-                [], order='plan_id, name', limit=500)
-            return [{
-                'id': r.id,
-                'name': r.display_name,
-                'plan_id': r.plan_id.id or 0,
-                'plan_name': r.plan_id.display_name or 'Sin plan',
-            } for r in records]
+                [], order='name', limit=500)
+            options = []
+            for row in records.read(['display_name', 'plan_id']):
+                plan = row.get('plan_id')
+                plan_id = plan[0] if plan else 0
+                plan_name = (plan[1] if plan else '') or 'Sin plan'
+                options.append({
+                    'id': row['id'],
+                    'name': row['display_name'],
+                    'plan_id': plan_id,
+                    'plan_name': plan_name,
+                })
+            options.sort(key=lambda o: ((o['plan_name'] or '').upper(),
+                                        (o['name'] or '').upper()))
+            return options
         except Exception:
             return []
 
