@@ -81,4 +81,83 @@
         <field name="formula">GB + GC + GA + OG + RF + OI</field>
         <field name="style">total</field>
     </record>
+
+    <!-- Hoja de balance: saldos acumulados; el resultado del ejercicio y los
+         no asignados de años anteriores salen de las cuentas de resultado
+         (4,5) acumuladas por ejercicio fiscal. -->
+    <record id="bs_structure_ar" model="l10n_ar.pl.structure">
+        <field name="name">Hoja de Balance (AR)</field>
+        <field name="report_kind">balance_sheet</field>
+    </record>
+
+    <record id="bs_line_ac" model="l10n_ar.pl.structure.line">
+        <field name="structure_id" ref="bs_structure_ar"/>
+        <field name="sequence">10</field>
+        <field name="code">AC</field>
+        <field name="name">Activo</field>
+        <field name="line_type">accounts</field>
+        <field name="account_prefixes">1</field>
+        <field name="balance_mode">cumulative</field>
+        <field name="sign">debit</field>
+        <field name="style">total</field>
+    </record>
+    <record id="bs_line_pa" model="l10n_ar.pl.structure.line">
+        <field name="structure_id" ref="bs_structure_ar"/>
+        <field name="sequence">20</field>
+        <field name="code">PA</field>
+        <field name="name">Pasivo</field>
+        <field name="line_type">accounts</field>
+        <field name="account_prefixes">2</field>
+        <field name="balance_mode">cumulative</field>
+        <field name="sign">credit</field>
+        <field name="style">total</field>
+    </record>
+    <record id="bs_line_pnc" model="l10n_ar.pl.structure.line">
+        <field name="structure_id" ref="bs_structure_ar"/>
+        <field name="sequence">30</field>
+        <field name="code">PNC</field>
+        <field name="name">Patrimonio neto (cuentas)</field>
+        <field name="line_type">accounts</field>
+        <field name="account_prefixes">3</field>
+        <field name="balance_mode">cumulative</field>
+        <field name="sign">credit</field>
+    </record>
+    <record id="bs_line_rna" model="l10n_ar.pl.structure.line">
+        <field name="structure_id" ref="bs_structure_ar"/>
+        <field name="sequence">40</field>
+        <field name="code">RNA</field>
+        <field name="name">Resultados no asignados de años anteriores</field>
+        <field name="line_type">accounts</field>
+        <field name="account_prefixes">4,5</field>
+        <field name="balance_mode">before_fy</field>
+        <field name="sign">credit</field>
+    </record>
+    <record id="bs_line_re" model="l10n_ar.pl.structure.line">
+        <field name="structure_id" ref="bs_structure_ar"/>
+        <field name="sequence">50</field>
+        <field name="code">RE</field>
+        <field name="name">Resultado del ejercicio</field>
+        <field name="line_type">accounts</field>
+        <field name="account_prefixes">4,5</field>
+        <field name="balance_mode">fy</field>
+        <field name="sign">credit</field>
+    </record>
+    <record id="bs_line_pn" model="l10n_ar.pl.structure.line">
+        <field name="structure_id" ref="bs_structure_ar"/>
+        <field name="sequence">60</field>
+        <field name="code">PN</field>
+        <field name="name">Total patrimonio neto</field>
+        <field name="line_type">formula</field>
+        <field name="formula">PNC + RNA + RE</field>
+        <field name="style">total</field>
+    </record>
+    <record id="bs_line_tppn" model="l10n_ar.pl.structure.line">
+        <field name="structure_id" ref="bs_structure_ar"/>
+        <field name="sequence">70</field>
+        <field name="code">TPPN</field>
+        <field name="name">Total pasivo y patrimonio neto</field>
+        <field name="line_type">formula</field>
+        <field name="formula">PA + PN</field>
+        <field name="style">total</field>
+    </record>
 </odoo>

@@ -6,8 +6,9 @@
         <field name="name">l10n_ar.pl.structure.list</field>
         <field name="model">l10n_ar.pl.structure</field>
         <field name="arch" type="xml">
-            <list string="Estructuras de Estado de Resultados">
+            <list string="Estructuras de reportes">
                 <field name="name"/>
+                <field name="report_kind"/>
             </list>
         </field>
     </record>
@@ -20,6 +21,7 @@
                 <sheet>
                     <group>
                         <field name="name"/>
+                        <field name="report_kind"/>
                         <field name="active" widget="boolean_toggle"/>
                     </group>
                     <field name="line_ids">
@@ -30,6 +32,8 @@
                             <field name="line_type"/>
                             <field name="account_prefixes"/>
                             <field name="formula"/>
+                            <field name="balance_mode"/>
+                            <field name="sign"/>
                             <field name="style"/>
                         </list>
                     </field>

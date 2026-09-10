@@ -12,6 +12,11 @@ Reportes contables estilo Enterprise para **Odoo 19 Community**, en pantalla
   de saldos con tramos configurables (A la fecha / 1-30 / 31-60 / 61-90 /
   91-120 / Antiguos), según fecha límite o fecha de factura, a cualquier
   fecha de corte (reconstruye el residual con las conciliaciones parciales).
+- **Hoja de balance**: misma mecánica que el Estado de resultados pero con
+  saldos acumulados; la estructura AR precargada trae Activo / Pasivo /
+  Patrimonio neto, con el resultado del ejercicio y los no asignados de
+  años anteriores calculados desde las cuentas de resultado por ejercicio
+  fiscal (cada línea configura su modo de saldo y su signo).
 - **Estado de resultados**: estructura de líneas configurable (Configuración
   → Estructuras Estado de Resultados: secciones por prefijos de cuenta y
   líneas fórmula tipo `VN + CV`, con una estructura AR precargada),
