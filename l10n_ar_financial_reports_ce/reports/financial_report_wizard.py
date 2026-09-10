@@ -30,6 +30,7 @@ REPORT_TITLES = {
     'aged_receivable': 'Cuenta por cobrar vencida',
     'aged_payable': 'Cuenta por pagar vencida',
     'profit_loss': 'Estado de resultados',
+    'balance_sheet': 'Hoja de balance',
 }
 
 AGED_BUCKET_KEYS = ('not_due', 'b1', 'b2', 'b3', 'b4', 'older')
@@ -54,6 +55,7 @@ class L10nArFinancialReportWizard(models.TransientModel):
         ('aged_receivable', 'Cuenta por cobrar vencida'),
         ('aged_payable', 'Cuenta por pagar vencida'),
         ('profit_loss', 'Estado de resultados'),
+        ('balance_sheet', 'Hoja de balance'),
     ], string='Reporte', required=True, default='partner_ledger')
     company_ids = fields.Many2many(
         'res.company', string='Compañías',
@@ -131,10 +133,10 @@ class L10nArFinancialReportWizard(models.TransientModel):
             res['date_to'] = fy['date_to']
         if 'date_at' in fields_list and not res.get('date_at'):
             res['date_at'] = today
-        # Estado de resultados: por defecto el mes actual, sin comparación.
+        # Reportes estructurados: por defecto el mes actual, sin comparación.
         report_type = res.get('report_type') or \
             self.env.context.get('default_report_type')
-        if report_type == 'profit_loss':
+        if report_type in ('profit_loss', 'balance_sheet'):
             month_start = today.replace(day=1)
             month_end = month_start + relativedelta(months=1) - \
                 timedelta(days=1)
@@ -149,6 +151,10 @@ class L10nArFinancialReportWizard(models.TransientModel):
     # ------------------------------------------------------------------
     def _is_aged(self):
         return self.report_type in ('aged_receivable', 'aged_payable')
+
+    def _is_structured(self):
+        """Reportes armados sobre una estructura configurable de líneas."""
+        return self.report_type in ('profit_loss', 'balance_sheet')
 
     def _get_companies(self):
         """Como en el resto de Odoo: todas las compañías seleccionadas."""
@@ -227,9 +233,9 @@ class L10nArFinancialReportWizard(models.TransientModel):
                 raise UserError('Indique el rango de fechas del reporte.')
             if self.date_from > self.date_to:
                 raise UserError('La fecha "Desde" no puede ser posterior a "Hasta".')
-        if self.report_type == 'profit_loss' and not self._pl_structure():
+        if self._is_structured() and not self._pl_structure():
             raise UserError(
-                'No hay una Estructura de Estado de Resultados configurada. '
+                'No hay una estructura configurada para este reporte. '
                 'Cree una en Configuración > Estructuras Estado de Resultados.')
 
     # ------------------------------------------------------------------
@@ -269,7 +275,7 @@ class L10nArFinancialReportWizard(models.TransientModel):
     def _get_columns(self):
         """[{'key','label','type','group'}] — type: text | text_right | date | monetary."""
         self.ensure_one()
-        if self.report_type == 'profit_loss':
+        if self._is_structured():
             return self._pl_columns()
         if self.report_type == 'partner_ledger':
             cols = [
@@ -321,7 +327,7 @@ class L10nArFinancialReportWizard(models.TransientModel):
         """
         self.ensure_one()
         self._check_config()
-        if self.report_type == 'profit_loss':
+        if self._is_structured():
             groups, totals = self._pl_groups()
         elif self._is_aged():
             groups, totals = self._aged_groups()
@@ -354,6 +360,7 @@ class L10nArFinancialReportWizard(models.TransientModel):
             'based_on': self.based_on,
             'show_details': self.show_details,
             'is_aged': self._is_aged(),
+            'is_structured': self._is_structured(),
             'has_unposted': has_unposted,
             'fy_last_month': int(self._main_company().fiscalyear_last_month
                                  or 12),
@@ -401,7 +408,7 @@ class L10nArFinancialReportWizard(models.TransientModel):
         """
         self.ensure_one()
         self._check_config()
-        if self.report_type == 'profit_loss':
+        if self._is_structured():
             return self._pl_lines(group_keys)
         if self._is_aged():
             return self._aged_lines(group_keys)
@@ -431,7 +438,7 @@ class L10nArFinancialReportWizard(models.TransientModel):
                 c for c in header['columns'] if c['key'] not in hidden]
         header['column_groups'] = self._column_groups(header['columns'])
 
-        is_pl = self.report_type == 'profit_loss'
+        is_pl = self._is_structured()
         text = (self.filter_text or '').strip().upper()
         filtered = bool(text)
         if filtered and not is_pl:
@@ -768,7 +775,7 @@ class L10nArFinancialReportWizard(models.TransientModel):
         del Estado de resultados."""
         self.ensure_one()
         self._check_config()
-        if self.report_type == 'profit_loss':
+        if self._is_structured():
             return self._pl_open_cell(group_key, col_key, line_key)
         if self._is_aged():
             keys = None if not col_key or col_key == 'total' else {col_key}
@@ -817,9 +824,23 @@ class L10nArFinancialReportWizard(models.TransientModel):
     # Estado de resultados (estructura configurable, comparación de
     # períodos y subcolumnas por cuenta analítica)
     # ------------------------------------------------------------------
+    def _structure_kind(self):
+        return 'balance_sheet' if self.report_type == 'balance_sheet' \
+            else 'profit_loss'
+
     def _pl_structure(self):
-        return self.structure_id or \
-            self.env['l10n_ar.pl.structure'].search([], limit=1)
+        kind = self._structure_kind()
+        if self.structure_id and self.structure_id.report_kind == kind:
+            return self.structure_id
+        return self.env['l10n_ar.pl.structure'].search(
+            [('report_kind', '=', kind)], limit=1)
+
+    def _pl_analytics(self):
+        """Subcolumnas analíticas: solo en el Estado de resultados (los
+        saldos acumulados del balance no se abren por analítica)."""
+        if self.report_type == 'profit_loss':
+            return self.analytic_account_ids
+        return self.env['account.analytic.account']
 
     def _pl_analytic_options(self):
         """Cuentas analíticas ofrecidas en la toolbar, con su plan (para
@@ -893,7 +914,7 @@ class L10nArFinancialReportWizard(models.TransientModel):
 
     def _pl_columns(self):
         periods = self._pl_periods()
-        analytics = self.analytic_account_ids
+        analytics = self._pl_analytics()
         cols = []
         for pi, (label, _df, _dt) in enumerate(periods):
             if analytics:
@@ -914,7 +935,7 @@ class L10nArFinancialReportWizard(models.TransientModel):
         """{col_key: (period_index, analytic_id | None)} — None = total
         del período completo."""
         periods = self._pl_periods()
-        analytics = self.analytic_account_ids
+        analytics = self._pl_analytics()
         specs = {}
         for pi in range(len(periods)):
             if analytics:
@@ -936,18 +957,34 @@ class L10nArFinancialReportWizard(models.TransientModel):
                 ids.append(int(part))
         return ids
 
+    def _pl_mode_range(self, periods, pi, mode):
+        """(date_from | None, date_to) del período pi según el modo de saldo
+        de la línea. None = sin cota inferior (saldos acumulados)."""
+        _label, period_from, period_to = periods[pi]
+        if mode == 'cumulative':
+            return None, period_to
+        if mode in ('fy', 'before_fy'):
+            fy_start = self._main_company().compute_fiscalyear_dates(
+                period_to)['date_from']
+            if mode == 'fy':
+                return fy_start, period_to
+            return None, fy_start - timedelta(days=1)
+        return period_from, period_to  # 'period'
+
     def _pl_compute(self):
-        """Núcleo del Estado de resultados.
+        """Núcleo de los reportes estructurados (Estado de resultados y
+        Hoja de balance).
 
         Devuelve dict con: structure, periods, line_accounts {line_id:
         {account_id}}, acc_info {account_id: (code, name)}, acc_vals
-        {(account_id, pi): balance} y acc_an_vals {(account_id, pi,
-        analytic_id): balance}. El matcheo de prefijos se hace POR compañía
-        (en Odoo 18/19 account.account.code es company-dependent)."""
+        {(account_id, pi, balance_mode): balance} y acc_an_vals
+        {(account_id, pi, analytic_id): balance}. El matcheo de prefijos se
+        hace POR compañía (en 18/19 account.account.code es
+        company-dependent)."""
         self.ensure_one()
         structure = self._pl_structure()
         periods = self._pl_periods()
-        analytics = self.analytic_account_ids
+        analytics = self._pl_analytics()
         an_ids = set(analytics.ids)
         AML = self.env['account.move.line']
         span_from = min(p[1] for p in periods)
@@ -960,6 +997,9 @@ class L10nArFinancialReportWizard(models.TransientModel):
                       if p.strip()]
             for line in acc_lines
         }
+        modes = set(acc_lines.mapped('balance_mode')) or {'period'}
+        # Los saldos acumulados necesitan también la historia previa al span.
+        unbounded = bool(modes - {'period'})
         line_accounts = defaultdict(set)
         acc_info = {}
         acc_vals = defaultdict(float)
@@ -975,11 +1015,12 @@ class L10nArFinancialReportWizard(models.TransientModel):
                 ('parent_state', 'in', self._get_states()),
                 ('display_type', 'not in', ('line_section', 'line_note')),
             ]
-            span_domain = base + [('date', '>=', span_from),
-                                  ('date', '<=', span_to)]
+            match_domain = base + [('date', '<=', span_to)]
+            if not unbounded:
+                match_domain += [('date', '>=', span_from)]
             matched_here = set()
             for account, _balance in AML._read_group(
-                    span_domain, ['account_id'], ['balance:sum']):
+                    match_domain, ['account_id'], ['balance:sum']):
                 if not account:
                     continue
                 account_c = account.with_company(company)
@@ -993,12 +1034,21 @@ class L10nArFinancialReportWizard(models.TransientModel):
                         break  # la primera línea (por secuencia) gana
             if not matched_here:
                 continue
+            # Cuentas por modo de saldo (evita computar acumulados sobre
+            # cuentas que solo participan por movimientos del período).
+            mode_accounts = defaultdict(set)
+            for line in acc_lines:
+                mode_accounts[line.balance_mode] |= \
+                    line_accounts[line.id] & matched_here
             if analytics:
-                # Un solo search_read sobre el span completo; bucketing por
-                # período y split de analytic_distribution en Python (los
-                # dominios sobre el campo JSON no son consistentes 17/18/19).
+                # Solo Estado de resultados (modo 'period'): un search_read
+                # sobre el span; bucketing por período y split de
+                # analytic_distribution en Python (los dominios sobre el
+                # campo JSON no son consistentes 17/18/19).
                 rows = AML.search_read(
-                    span_domain + [('account_id', 'in', list(matched_here))],
+                    base + [('date', '>=', span_from),
+                            ('date', '<=', span_to),
+                            ('account_id', 'in', list(matched_here))],
                     ['date', 'account_id', 'balance', 'analytic_distribution'])
                 for row in rows:
                     indexes = period_indexes(row['date'])
@@ -1014,19 +1064,28 @@ class L10nArFinancialReportWizard(models.TransientModel):
                                     (analytic_id,
                                      balance * (pct or 0.0) / 100.0))
                     for pi in indexes:
-                        acc_vals[(account_id, pi)] += balance
+                        acc_vals[(account_id, pi, 'period')] += balance
                         for analytic_id, amount in parts:
                             acc_an_vals[(account_id, pi, analytic_id)] += amount
             else:
-                for pi, (_label, pdf, pdt) in enumerate(periods):
-                    domain = base + [
-                        ('date', '>=', pdf), ('date', '<=', pdt),
-                        ('account_id', 'in', list(matched_here)),
-                    ]
-                    for account, balance in AML._read_group(
-                            domain, ['account_id'], ['balance:sum']):
-                        if account:
-                            acc_vals[(account.id, pi)] += balance or 0.0
+                for pi in range(len(periods)):
+                    for mode in modes:
+                        accounts = mode_accounts.get(mode)
+                        if not accounts:
+                            continue
+                        date_from, date_to = self._pl_mode_range(
+                            periods, pi, mode)
+                        domain = base + [
+                            ('date', '<=', date_to),
+                            ('account_id', 'in', list(accounts)),
+                        ]
+                        if date_from:
+                            domain += [('date', '>=', date_from)]
+                        for account, balance in AML._read_group(
+                                domain, ['account_id'], ['balance:sum']):
+                            if account:
+                                acc_vals[(account.id, pi, mode)] += \
+                                    balance or 0.0
         return {
             'structure': structure,
             'periods': periods,
@@ -1046,17 +1105,20 @@ class L10nArFinancialReportWizard(models.TransientModel):
             raw_vals = {}
             if line.line_type == 'accounts':
                 ids = comp['line_accounts'].get(line.id, set())
+                mode = line.balance_mode or 'period'
+                sign = 1.0 if line.sign == 'debit' else -1.0
                 for key, (pi, analytic_id) in col_specs.items():
                     if analytic_id is None:
-                        raw = sum(comp['acc_vals'].get((a, pi), 0.0)
+                        raw = sum(comp['acc_vals'].get((a, pi, mode), 0.0)
                                   for a in ids)
                     else:
                         raw = sum(
                             comp['acc_an_vals'].get((a, pi, analytic_id), 0.0)
                             for a in ids)
-                    # Signo de presentación: ingresos positivos. Redondear
-                    # ANTES de las fórmulas para que los totales cierren.
-                    raw_vals[key] = currency.round(-raw)
+                    # Signo de presentación según la línea (haber/debe
+                    # positivo). Redondear ANTES de las fórmulas para que
+                    # los totales cierren.
+                    raw_vals[key] = currency.round(sign * raw)
             else:
                 for key in col_specs:
                     scope = {code: vals.get(key, 0.0)
@@ -1095,6 +1157,8 @@ class L10nArFinancialReportWizard(models.TransientModel):
             if wanted is not None and line.id not in wanted:
                 continue
             rows = []
+            mode = line.balance_mode or 'period'
+            sign = 1.0 if line.sign == 'debit' else -1.0
             account_ids = sorted(
                 comp['line_accounts'].get(line.id, set()),
                 key=lambda a: comp['acc_info'].get(a, ('', ''))[0])
@@ -1103,11 +1167,12 @@ class L10nArFinancialReportWizard(models.TransientModel):
                 nonzero = False
                 for key, (pi, analytic_id) in col_specs.items():
                     if analytic_id is None:
-                        raw = comp['acc_vals'].get((account_id, pi), 0.0)
+                        raw = comp['acc_vals'].get(
+                            (account_id, pi, mode), 0.0)
                     else:
                         raw = comp['acc_an_vals'].get(
                             (account_id, pi, analytic_id), 0.0)
-                    value = currency.round(-raw)
+                    value = currency.round(sign * raw)
                     if not currency.is_zero(value):
                         nonzero = True
                     values[key] = self._money_cell(value)
@@ -1139,16 +1204,19 @@ class L10nArFinancialReportWizard(models.TransientModel):
         else:
             account_ids = list(comp['line_accounts'].get(group_key, set()))
             label = line.name if line else ''
+        mode = (line.balance_mode if line else '') or 'period'
         spec = specs.get(col_key)
         if spec:
             pi, analytic_id = spec
-            _plabel, date_from, date_to = comp['periods'][pi]
+            date_from, date_to = self._pl_mode_range(comp['periods'], pi, mode)
         else:
             date_from, date_to, analytic_id = self.date_from, self.date_to, None
         domain = self._common_domain() + [
-            ('date', '>=', date_from), ('date', '<=', date_to),
+            ('date', '<=', date_to),
             ('account_id', 'in', account_ids),
         ]
+        if date_from:
+            domain += [('date', '>=', date_from)]
         if analytic_id is not None:
             rows = self.env['account.move.line'].search_read(
                 domain, ['analytic_distribution'])
@@ -1188,6 +1256,9 @@ class L10nArFinancialReportWizard(models.TransientModel):
             ('l10n_ar_financial_reports_ce.menu_profit_loss',
              ['Ganancia y Perdida', 'Ganancia y pérdida',
               'Estado de resultados', 'Profit and Loss']),
+            ('l10n_ar_financial_reports_ce.menu_balance_sheet',
+             ['Hoja de Balance', 'Hoja de balance', 'Balance Sheet',
+              'Balance general', 'Estado de Situación Patrimonial']),
         ]
         Menu = self.env['ir.ui.menu'].sudo()
         our_menus = {}

@@ -48,8 +48,8 @@
                             <option value="receivable" t-att-selected="header.account_type_filter === 'receivable'">Cuenta: Por cobrar</option>
                             <option value="payable" t-att-selected="header.account_type_filter === 'payable'">Cuenta: Por pagar</option>
                         </select>
-                        <!-- Estado de resultados: comparación / orden / analíticas -->
-                        <t t-if="header.report_type === 'profit_loss'">
+                        <!-- Reportes estructurados: comparación / orden / analíticas -->
+                        <t t-if="header.is_structured">
                             <select class="form-select form-select-sm w-auto"
                                     t-on-change="(ev) => this.updateFilter('comparison_mode', ev.target.value)">
                                 <option value="none" t-att-selected="header.comparison_mode === 'none'">Sin comparación</option>
@@ -71,7 +71,7 @@
                                 <option value="asc" t-att-selected="header.period_order === 'asc'">Ascendente</option>
                             </select>
                             <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button"
-                                    t-if="header.analytic_options.length"
+                                    t-if="header.report_type === 'profit_loss' and header.analytic_options.length"
                                     t-on-click="toggleAnalyticMenu">
                                 Analítica<t t-if="header.analytic_ids.length"> (<t t-esc="header.analytic_ids.length"/>)</t>
                             </button>

@@ -143,7 +143,10 @@ export class ArFinancialReport extends Component {
         return this.header.columns.filter((c) => !this.state.hiddenCols[c.key]);
     }
     get isPl() {
-        return !!this.header && this.header.report_type === "profit_loss";
+        // Reportes estructurados (Estado de resultados y Hoja de balance):
+        // comparten buscador sobre detalle, menú de columnas por período, etc.
+        return !!this.header && (this.header.is_structured ||
+            this.header.report_type === "profit_loss");
     }
     get hasTotals() {
         return !!this.totals && Object.keys(this.totals).length > 0;
