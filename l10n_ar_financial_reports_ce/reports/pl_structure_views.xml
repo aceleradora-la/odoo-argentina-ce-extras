@@ -6,7 +6,7 @@
         <field name="name">l10n_ar.pl.structure.list</field>
         <field name="model">l10n_ar.pl.structure</field>
         <field name="arch" type="xml">
-            <tree string="Estructuras de reportes">
+            <tree string="Reportes Contables">
                 <field name="name"/>
                 <field name="report_kind"/>
             </tree>
@@ -17,7 +17,7 @@
         <field name="name">l10n_ar.pl.structure.form</field>
         <field name="model">l10n_ar.pl.structure</field>
         <field name="arch" type="xml">
-            <form string="Estructura de Estado de Resultados">
+            <form string="Reporte contable">
                 <sheet>
                     <group>
                         <field name="name"/>
@@ -31,9 +31,13 @@
                             <field name="name"/>
                             <field name="line_type"/>
                             <field name="account_prefixes"/>
+                            <field name="account_tag_ids" widget="many2many_tags"
+                                   optional="show" options="{'no_create': True}"/>
+                            <field name="account_ids" widget="many2many_tags"
+                                   optional="hide" options="{'no_create': True}"/>
                             <field name="formula"/>
-                            <field name="balance_mode"/>
-                            <field name="sign"/>
+                            <field name="balance_mode" optional="show"/>
+                            <field name="sign" optional="show"/>
                             <field name="style"/>
                         </tree>
                     </field>
@@ -43,12 +47,12 @@
     </record>
 
     <record id="action_pl_structure" model="ir.actions.act_window">
-        <field name="name">Estructuras Estado de Resultados</field>
+        <field name="name">Reportes Contables</field>
         <field name="res_model">l10n_ar.pl.structure</field>
         <field name="view_mode">tree,form</field>
     </record>
 
-    <menuitem id="menu_pl_structure" name="Estructuras Estado de Resultados"
+    <menuitem id="menu_pl_structure" name="Reportes Contables"
               parent="account.menu_finance_configuration"
               action="action_pl_structure"
               groups="account.group_account_manager" sequence="99"/>
