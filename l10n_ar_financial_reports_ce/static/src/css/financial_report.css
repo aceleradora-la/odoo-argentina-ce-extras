@@ -72,6 +72,10 @@
     position: sticky;
     left: 0;
     z-index: 1;
+    /* Ancho preferido acotado: sin esto, con pocas columnas de período el
+       sobrante de la tabla (100%) se lo queda la columna de nombres y los
+       importes quedan lejísimos. El sobrante va a las columnas numéricas. */
+    width: 380px;
     min-width: 280px;
     max-width: 420px;
     overflow: hidden;
