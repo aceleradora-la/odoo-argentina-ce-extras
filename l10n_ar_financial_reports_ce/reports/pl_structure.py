@@ -22,6 +22,10 @@ class L10nArPlStructure(models.Model):
 
     name = fields.Char(string='Nombre', required=True)
     active = fields.Boolean(default=True)
+    report_kind = fields.Selection([
+        ('profit_loss', 'Estado de resultados'),
+        ('balance_sheet', 'Hoja de balance'),
+    ], string='Tipo de reporte', required=True, default='profit_loss')
     line_ids = fields.One2many(
         'l10n_ar.pl.structure.line', 'structure_id',
         string='Líneas', copy=True)
@@ -54,6 +58,23 @@ class L10nArPlStructureLine(models.Model):
         string='Fórmula',
         help='Expresión con los códigos de líneas anteriores (por secuencia). '
              'Ej: VN + CV')
+    balance_mode = fields.Selection([
+        ('period', 'Movimientos del período'),
+        ('cumulative', 'Saldo acumulado histórico'),
+        ('fy', 'Acumulado del ejercicio fiscal'),
+        ('before_fy', 'Acumulado anterior al ejercicio'),
+    ], string='Saldo', required=True, default='period',
+        help='Qué suma la línea en cada período del reporte. Estado de '
+             'resultados: movimientos del período. Hoja de balance: saldo '
+             'acumulado histórico (activo/pasivo/PN); "Acumulado del '
+             'ejercicio" y "anterior al ejercicio" sirven para el resultado '
+             'del ejercicio y los no asignados de años anteriores (4,5).')
+    sign = fields.Selection([
+        ('credit', 'Haber positivo'),
+        ('debit', 'Debe positivo'),
+    ], string='Signo', required=True, default='credit',
+        help='Haber positivo: ingresos, pasivo, patrimonio. '
+             'Debe positivo: activo.')
     style = fields.Selection([
         ('section', 'Sección'),
         ('total', 'Total destacado'),
