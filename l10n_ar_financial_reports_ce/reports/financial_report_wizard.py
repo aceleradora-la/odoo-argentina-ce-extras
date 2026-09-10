@@ -825,12 +825,18 @@ class L10nArFinancialReportWizard(models.TransientModel):
             self.env['l10n_ar.pl.structure'].search([], limit=1)
 
     def _pl_analytic_options(self):
-        """Cuentas analíticas ofrecidas en la toolbar (vacío si el usuario
-        no tiene acceso al modelo analítico)."""
+        """Cuentas analíticas ofrecidas en la toolbar, con su plan (para
+        agrupar y filtrar como Enterprise). Vacío si el usuario no tiene
+        acceso al modelo analítico."""
         try:
             records = self.env['account.analytic.account'].search(
-                [], order='name', limit=200)
-            return [{'id': r.id, 'name': r.display_name} for r in records]
+                [], order='plan_id, name', limit=500)
+            return [{
+                'id': r.id,
+                'name': r.display_name,
+                'plan_id': r.plan_id.id or 0,
+                'plan_name': r.plan_id.display_name or 'Sin plan',
+            } for r in records]
         except Exception:
             return []
 
