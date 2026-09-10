@@ -96,8 +96,8 @@ class L10nArFinancialReportWizard(models.TransientModel):
         'l10n_ar.pl.structure', string='Estructura',
         default=lambda self: self.env['l10n_ar.pl.structure'].search(
             [], limit=1),
-        help='Estructura de líneas del Estado de resultados '
-             '(Configuración > Estructuras Estado de Resultados).')
+        help='Estructura de líneas del reporte '
+             '(Configuración > Reportes Contables).')
     comparison_mode = fields.Selection([
         ('none', 'Sin comparación'),
         ('previous_period', 'Períodos anteriores'),
@@ -236,7 +236,7 @@ class L10nArFinancialReportWizard(models.TransientModel):
         if self._is_structured() and not self._pl_structure():
             raise UserError(
                 'No hay una estructura configurada para este reporte. '
-                'Cree una en Configuración > Estructuras Estado de Resultados.')
+                'Cree una en Configuración > Reportes Contables.')
 
     # ------------------------------------------------------------------
     # Metadatos de columnas (la pantalla, el PDF y el Excel iteran esto)
@@ -997,6 +997,10 @@ class L10nArFinancialReportWizard(models.TransientModel):
                       if p.strip()]
             for line in acc_lines
         }
+        tag_map = {line.id: set(line.account_tag_ids.ids)
+                   for line in acc_lines}
+        explicit_map = {line.id: set(line.account_ids.ids)
+                        for line in acc_lines}
         modes = set(acc_lines.mapped('balance_mode')) or {'period'}
         # Los saldos acumulados necesitan también la historia previa al span.
         unbounded = bool(modes - {'period'})
@@ -1025,8 +1029,13 @@ class L10nArFinancialReportWizard(models.TransientModel):
                     continue
                 account_c = account.with_company(company)
                 code = account_c.code or ''
+                account_tags = set(account.tag_ids.ids)
                 for line in acc_lines:
-                    if any(code.startswith(p) for p in prefix_map[line.id]):
+                    # Unión de criterios: prefijo, cuenta puntual o etiqueta.
+                    if (any(code.startswith(p) for p in prefix_map[line.id])
+                            or account.id in explicit_map[line.id]
+                            or (tag_map[line.id]
+                                and account_tags & tag_map[line.id])):
                         line_accounts[line.id].add(account.id)
                         matched_here.add(account.id)
                         acc_info.setdefault(

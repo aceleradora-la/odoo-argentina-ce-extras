@@ -54,6 +54,14 @@ class L10nArPlStructureLine(models.Model):
              'Ej: 4.1,4.2 incluye todas las cuentas cuyo código empiece así. '
              'Ojo: una cuenta patrimonial (ej. 1.1.6) computa el movimiento '
              'neto del período, no un costo de venta real (EI + compras - EF).')
+    account_tag_ids = fields.Many2many(
+        'account.account.tag', string='Etiquetas de cuenta',
+        help='Incluye las cuentas que tengan alguna de estas etiquetas. '
+             'Se combina (unión) con los prefijos y las cuentas puntuales.')
+    account_ids = fields.Many2many(
+        'account.account', string='Cuentas puntuales',
+        help='Cuentas específicas a incluir, además de las que matcheen '
+             'por prefijo o etiqueta.')
     formula = fields.Char(
         string='Fórmula',
         help='Expresión con los códigos de líneas anteriores (por secuencia). '
