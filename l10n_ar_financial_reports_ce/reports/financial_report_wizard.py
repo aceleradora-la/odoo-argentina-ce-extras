@@ -251,15 +251,8 @@ class L10nArFinancialReportWizard(models.TransientModel):
         self.ensure_one()
         if self._is_aged():
             return 'Al %s' % self._fmt_date(self.date_at)
-        if self.report_type == 'profit_loss':
-            return self._pl_period_label(self.date_from, self.date_to)
-        same_year = (self.date_from.month, self.date_from.day) == (1, 1) \
-            and (self.date_to.month, self.date_to.day) == (12, 31) \
-            and self.date_from.year == self.date_to.year
-        if same_year:
-            return str(self.date_from.year)
-        return '%s - %s' % (self._fmt_date(self.date_from),
-                            self._fmt_date(self.date_to))
+        # Mes completo -> "sept 2026", año calendario -> "2026", si no rango.
+        return self._pl_period_label(self.date_from, self.date_to)
 
     @staticmethod
     def _column_groups(columns):
@@ -362,6 +355,10 @@ class L10nArFinancialReportWizard(models.TransientModel):
             'show_details': self.show_details,
             'is_aged': self._is_aged(),
             'has_unposted': has_unposted,
+            'fy_last_month': int(self._main_company().fiscalyear_last_month
+                                 or 12),
+            'fy_last_day': int(self._main_company().fiscalyear_last_day
+                               or 31),
             'comparison_mode': self.comparison_mode,
             'comparison_periods': self.comparison_periods,
             'period_order': self.period_order,

@@ -34,16 +34,11 @@
                             </div>
                         </t>
                         <t t-else="">
-                            <div class="input-group input-group-sm w-auto">
-                                <span class="input-group-text">Desde</span>
-                                <input type="date" class="form-control form-control-sm"
-                                       t-att-value="header.date_from"
-                                       t-on-change="(ev) => this.onDateChange('date_from', ev)"/>
-                                <span class="input-group-text">Hasta</span>
-                                <input type="date" class="form-control form-control-sm"
-                                       t-att-value="header.date_to"
-                                       t-on-change="(ev) => this.onDateChange('date_to', ev)"/>
-                            </div>
+                            <!-- Selector de período estilo Enterprise -->
+                            <button class="btn btn-sm btn-outline-secondary dropdown-toggle text-nowrap" type="button"
+                                    t-on-click="togglePeriodMenu">
+                                <i class="fa fa-calendar me-1"/><t t-esc="header.period_label"/>
+                            </button>
                         </t>
                         <!-- Cuentas (solo libro mayor de la empresa) -->
                         <select class="form-select form-select-sm w-auto"
@@ -246,6 +241,59 @@
                         </div>
                     </li>
                 </ul>
+            </t>
+
+            <!-- Selector de período flotante (Mes / Trimestre / Año / Personalizado). -->
+            <t t-if="state.showPeriodMenu and header">
+                <div class="o_arfr_menu_backdrop" t-on-click="closeColumnsMenu"/>
+                <div class="dropdown-menu show p-2 o_arfr_columns_menu o_arfr_period_menu"
+                     t-attf-style="top: {{state.menuPos.top}}px; left: {{state.menuPos.left}}px;">
+                    <t t-foreach="periodRows" t-as="prow" t-key="prow.name">
+                        <div class="d-flex align-items-center justify-content-between o_arfr_period_row py-1">
+                            <a href="#" class="text-decoration-none o_arfr_period_name"
+                               t-att-class="isActiveRange(prow.range) ? 'fw-bold' : ''"
+                               t-on-click.prevent="() => this.selectPeriod(prow.range)">
+                                <i class="fa fa-check me-1" t-if="isActiveRange(prow.range)"/>
+                                <t t-esc="prow.name"/>
+                            </a>
+                            <span class="d-flex align-items-center">
+                                <a href="#" class="px-2 text-secondary"
+                                   t-on-click.prevent="() => this.shiftAnchor(-prow.step)">
+                                    <i class="fa fa-chevron-left"/>
+                                </a>
+                                <a href="#" class="text-decoration-none o_arfr_period_label text-center"
+                                   t-on-click.prevent="() => this.selectPeriod(prow.range)">
+                                    <t t-esc="prow.range.label"/>
+                                </a>
+                                <a href="#" class="px-2 text-secondary"
+                                   t-on-click.prevent="() => this.shiftAnchor(prow.step)">
+                                    <i class="fa fa-chevron-right"/>
+                                </a>
+                            </span>
+                        </div>
+                    </t>
+                    <hr class="dropdown-divider"/>
+                    <a href="#" class="text-decoration-none d-block py-1 o_arfr_period_name"
+                       t-att-class="isCustomPeriod ? 'fw-bold' : ''"
+                       t-on-click.prevent="toggleCustomDates">
+                        <i class="fa fa-check me-1" t-if="isCustomPeriod"/>
+                        Fechas personalizadas
+                    </a>
+                    <div t-if="state.showCustomDates" class="pt-2">
+                        <div class="input-group input-group-sm mb-1">
+                            <span class="input-group-text" style="width: 60px;">Desde</span>
+                            <input type="date" class="form-control form-control-sm"
+                                   t-model="state.customFrom"/>
+                        </div>
+                        <div class="input-group input-group-sm mb-2">
+                            <span class="input-group-text" style="width: 60px;">Hasta</span>
+                            <input type="date" class="form-control form-control-sm"
+                                   t-model="state.customTo"/>
+                        </div>
+                        <button class="btn btn-sm btn-primary w-100"
+                                t-on-click="applyCustomDates">Aplicar</button>
+                    </div>
+                </div>
             </t>
 
             <!-- Menú de analíticas flotante (Estado de resultados). -->
