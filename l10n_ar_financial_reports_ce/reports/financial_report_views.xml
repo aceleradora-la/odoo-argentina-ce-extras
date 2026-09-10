@@ -128,23 +128,58 @@
         <field name="context">{'default_report_type': 'aged_payable'}</field>
     </record>
 
+    <!-- Apertura directa (como Enterprise): el menú crea el wizard con
+         defaults y abre el reporte; todo se ajusta desde la toolbar. El
+         formulario de selección (act_window) queda disponible pero los
+         menús ya no pasan por él. -->
+    <record id="server_action_partner_ledger" model="ir.actions.server">
+        <field name="name">Libro mayor de la empresa (Dinámico)</field>
+        <field name="model_id" ref="model_l10n_ar_financial_report_wizard"/>
+        <field name="state">code</field>
+        <field name="code">action = model.with_context(default_report_type='partner_ledger').create({}).action_generate()</field>
+    </record>
+    <record id="server_action_general_ledger" model="ir.actions.server">
+        <field name="name">Libro mayor (Dinámico)</field>
+        <field name="model_id" ref="model_l10n_ar_financial_report_wizard"/>
+        <field name="state">code</field>
+        <field name="code">action = model.with_context(default_report_type='general_ledger').create({}).action_generate()</field>
+    </record>
+    <record id="server_action_aged_receivable" model="ir.actions.server">
+        <field name="name">Cuentas por cobrar vencidas (Dinámico)</field>
+        <field name="model_id" ref="model_l10n_ar_financial_report_wizard"/>
+        <field name="state">code</field>
+        <field name="code">action = model.with_context(default_report_type='aged_receivable').create({}).action_generate()</field>
+    </record>
+    <record id="server_action_aged_payable" model="ir.actions.server">
+        <field name="name">Cuentas por pagar vencidas (Dinámico)</field>
+        <field name="model_id" ref="model_l10n_ar_financial_report_wizard"/>
+        <field name="state">code</field>
+        <field name="code">action = model.with_context(default_report_type='aged_payable').create({}).action_generate()</field>
+    </record>
+    <record id="server_action_profit_loss" model="ir.actions.server">
+        <field name="name">Estado de resultados (Dinámico)</field>
+        <field name="model_id" ref="model_l10n_ar_financial_report_wizard"/>
+        <field name="state">code</field>
+        <field name="code">action = model.with_context(default_report_type='profit_loss').create({}).action_generate()</field>
+    </record>
+
     <!-- Nombres diferenciados de los reportes estándar con "(Dinámico)".
          _place_menus() los reubica debajo de su equivalente estándar si un
          módulo de reportes lo provee; si no, quedan acá bajo Reportes. -->
     <menuitem id="menu_profit_loss" name="Estado de resultados (Dinámico)"
-              parent="account.menu_finance_reports" action="action_profit_loss"
+              parent="account.menu_finance_reports" action="server_action_profit_loss"
               groups="account.group_account_readonly" sequence="29"/>
     <menuitem id="menu_partner_ledger" name="Libro mayor de la empresa (Dinámico)"
-              parent="account.menu_finance_reports" action="action_partner_ledger"
+              parent="account.menu_finance_reports" action="server_action_partner_ledger"
               groups="account.group_account_readonly" sequence="30"/>
     <menuitem id="menu_general_ledger" name="Libro mayor (Dinámico)"
-              parent="account.menu_finance_reports" action="action_general_ledger"
+              parent="account.menu_finance_reports" action="server_action_general_ledger"
               groups="account.group_account_readonly" sequence="31"/>
     <menuitem id="menu_aged_receivable" name="Cuentas por cobrar vencidas (Dinámico)"
-              parent="account.menu_finance_reports" action="action_aged_receivable"
+              parent="account.menu_finance_reports" action="server_action_aged_receivable"
               groups="account.group_account_readonly" sequence="32"/>
     <menuitem id="menu_aged_payable" name="Cuentas por pagar vencidas (Dinámico)"
-              parent="account.menu_finance_reports" action="action_aged_payable"
+              parent="account.menu_finance_reports" action="server_action_aged_payable"
               groups="account.group_account_readonly" sequence="33"/>
 
     <!-- Corre en cada instalación/actualización del módulo. -->
