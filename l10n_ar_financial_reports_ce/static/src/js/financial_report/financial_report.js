@@ -41,6 +41,11 @@ export class ArFinancialReport extends Component {
             hiddenCols: {},
             showColumnsMenu: false,
             showAnalyticMenu: false,
+            showPeriodMenu: false,
+            showCustomDates: false,
+            periodAnchor: "",
+            customFrom: "",
+            customTo: "",
             analyticFilter: "",
             analyticPlanId: 0,
             menuPos: { top: 0, left: 0 },
@@ -190,7 +195,7 @@ export class ArFinancialReport extends Component {
             return;
         }
         this._placeMenu(ev);
-        this.state.showAnalyticMenu = false;
+        this.closeColumnsMenu();
         this.state.showColumnsMenu = true;
     }
     toggleAnalyticMenu(ev) {
@@ -199,12 +204,26 @@ export class ArFinancialReport extends Component {
             return;
         }
         this._placeMenu(ev);
-        this.state.showColumnsMenu = false;
+        this.closeColumnsMenu();
         this.state.showAnalyticMenu = true;
+    }
+    togglePeriodMenu(ev) {
+        if (this.state.showPeriodMenu) {
+            this.state.showPeriodMenu = false;
+            return;
+        }
+        this._placeMenu(ev);
+        this.closeColumnsMenu();
+        this.state.periodAnchor = this.header.date_from || "";
+        this.state.customFrom = this.header.date_from || "";
+        this.state.customTo = this.header.date_to || "";
+        this.state.showCustomDates = false;
+        this.state.showPeriodMenu = true;
     }
     closeColumnsMenu() {
         this.state.showColumnsMenu = false;
         this.state.showAnalyticMenu = false;
+        this.state.showPeriodMenu = false;
     }
 
     /** Menú de columnas por GRUPO (períodos) para el Estado de resultados:
@@ -393,12 +412,11 @@ export class ArFinancialReport extends Component {
     }
 
     // --- filtros --------------------------------------------------------
-    async updateFilter(field, value) {
+    async updateFilters(vals) {
         this.state.loading = true;
         this.state.error = null;
         try {
-            const data = await this._callWizard(
-                "update_filters", [{ [field]: value }]);
+            const data = await this._callWizard("update_filters", [vals]);
             this._setData(data);
             this.state.lines = {};
             this.state.expanded = {};
@@ -407,6 +425,121 @@ export class ArFinancialReport extends Component {
         } finally {
             this.state.loading = false;
         }
+    }
+    async updateFilter(field, value) {
+        return this.updateFilters({ [field]: value });
+    }
+
+    // --- selector de período (Mes / Trimestre / Año / Personalizado) ----
+    _anchor() {
+        const iso = this.state.periodAnchor ||
+            (this.header && this.header.date_from) || "";
+        const [y, m, d] = iso.split("-").map(Number);
+        return y ? { y, m, d } : { y: 2000, m: 1, d: 1 };
+    }
+    _iso(y, m, d) {
+        return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+    }
+    _daysInMonth(y, m) {
+        return new Date(y, m, 0).getDate();
+    }
+    shiftAnchor(months) {
+        const a = this._anchor();
+        const total = a.y * 12 + (a.m - 1) + months;
+        const y = Math.floor(total / 12);
+        const m = (total % 12) + 1;
+        this.state.periodAnchor = this._iso(y, m, 1);
+    }
+    get periodMonth() {
+        const a = this._anchor();
+        const MONTHS = ["enero", "febrero", "marzo", "abril", "mayo", "junio",
+            "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+        return {
+            label: `${MONTHS[a.m - 1]} ${a.y}`,
+            from: this._iso(a.y, a.m, 1),
+            to: this._iso(a.y, a.m, this._daysInMonth(a.y, a.m)),
+        };
+    }
+    get periodQuarter() {
+        const a = this._anchor();
+        const SHORT = ["ene", "feb", "mar", "abr", "may", "jun",
+            "jul", "ago", "sept", "oct", "nov", "dic"];
+        const q = Math.floor((a.m - 1) / 3);
+        const m1 = q * 3 + 1;
+        const m3 = q * 3 + 3;
+        return {
+            label: `${SHORT[m1 - 1]} - ${SHORT[m3 - 1]} ${a.y}`,
+            from: this._iso(a.y, m1, 1),
+            to: this._iso(a.y, m3, this._daysInMonth(a.y, m3)),
+        };
+    }
+    get periodCalendarYear() {
+        const a = this._anchor();
+        return {
+            label: String(a.y),
+            from: this._iso(a.y, 1, 1),
+            to: this._iso(a.y, 12, 31),
+        };
+    }
+    get periodFiscalYear() {
+        const a = this._anchor();
+        const lm = (this.header && this.header.fy_last_month) || 12;
+        const ld = (this.header && this.header.fy_last_day) || 31;
+        // Fin del ejercicio que contiene el ancla.
+        let endY = a.y;
+        let endD = Math.min(ld, this._daysInMonth(endY, lm));
+        if (a.m > lm || (a.m === lm && a.d > endD)) {
+            endY += 1;
+            endD = Math.min(ld, this._daysInMonth(endY, lm));
+        }
+        const start = new Date(endY - 1, lm - 1,
+            Math.min(ld, this._daysInMonth(endY - 1, lm)));
+        start.setDate(start.getDate() + 1);
+        const isCalendar = lm === 12 && ld >= 31;
+        return {
+            label: isCalendar ? String(endY) : `AF ${endY}`,
+            from: this._iso(start.getFullYear(), start.getMonth() + 1,
+                start.getDate()),
+            to: this._iso(endY, lm, endD),
+        };
+    }
+    get periodRows() {
+        const rows = [
+            { name: "Mes", range: this.periodMonth, step: 1 },
+            { name: "Trimestre", range: this.periodQuarter, step: 3 },
+            { name: "Año Fiscal", range: this.periodFiscalYear, step: 12 },
+        ];
+        // Si el ejercicio fiscal coincide con el calendario, una sola fila.
+        const fy = this.periodFiscalYear;
+        const cy = this.periodCalendarYear;
+        if (fy.from !== cy.from || fy.to !== cy.to) {
+            rows.push({ name: "Año Calendario", range: cy, step: 12 });
+        }
+        return rows;
+    }
+    isActiveRange(range) {
+        return !!this.header && this.header.date_from === range.from &&
+            this.header.date_to === range.to;
+    }
+    get isCustomPeriod() {
+        return !this.periodRows.some((row) => this.isActiveRange(row.range));
+    }
+    async selectPeriod(range) {
+        this.closeColumnsMenu();
+        await this.updateFilters({ date_from: range.from, date_to: range.to });
+    }
+    toggleCustomDates() {
+        this.state.showCustomDates = !this.state.showCustomDates;
+    }
+    async applyCustomDates() {
+        if (!this.state.customFrom || !this.state.customTo) {
+            return;
+        }
+        this.closeColumnsMenu();
+        await this.updateFilters({
+            date_from: this.state.customFrom,
+            date_to: this.state.customTo,
+        });
     }
     onDateChange(field, ev) {
         if (ev.target.value) {
