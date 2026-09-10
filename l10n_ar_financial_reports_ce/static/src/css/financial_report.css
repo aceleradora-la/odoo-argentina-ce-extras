@@ -104,6 +104,14 @@
     color: var(--o-main-text-color, #495057);
 }
 
+/* Encabezados de plan en el menú de analíticas. */
+.o_arfr_columns_menu .o_arfr_plan_header {
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.72rem;
+    letter-spacing: 0.03em;
+}
+
 /* Filas "Total destacado" del Estado de resultados. */
 .o_arfr_report .o_arfr_row_total td {
     font-weight: 700;
