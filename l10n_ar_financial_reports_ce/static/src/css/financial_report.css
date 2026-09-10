@@ -13,6 +13,12 @@
 .o_arfr_report .o_content > * {
     margin: 1rem;
 }
+/* La tabla mide 100% del scroller MÁS sus márgenes: sin este calc siempre
+   desborda ~2rem y la última columna queda recortada bajo un mini scroll
+   horizontal (muy visible con pocas columnas). */
+.o_arfr_report .o_content > table {
+    width: calc(100% - 2rem);
+}
 
 /* Toolbar en una sola fila: nada baja a una segunda línea; si no entra,
    scrollea horizontal. */
