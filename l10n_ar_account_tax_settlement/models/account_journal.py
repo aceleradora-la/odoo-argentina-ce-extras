@@ -72,6 +72,17 @@ class AccountJournal(models.Model):
         
         # Si hay una línea, intentar obtener desde withholding
         if line:
+            # Ganancias por "Tabla Ganancias" (l10n_ar_account_withholding de adhoc):
+            # hay UN impuesto por compañía y el régimen se elige en el pago.
+            payment = line.payment_id if "payment_id" in line._fields else False
+            if (
+                payment
+                and getattr(tax, "withholding_type", False) == "tabla_ganancias"
+                and "regimen_ganancias_id" in payment._fields
+                and payment.regimen_ganancias_id
+            ):
+                return payment.regimen_ganancias_id.codigo_de_regimen
+
             # Desde withholding_id (l10n_ar.payment.withholding)
             if hasattr(line, 'withholding_id') and line.withholding_id:
                 withholding_tax = line.withholding_id.tax_id
@@ -1435,6 +1446,9 @@ class AccountJournal(models.Model):
                 # Verificamos si el campo existe, y si no, intentamos identificar por nombre del grupo
                 is_earnings_tax = False
                 if hasattr(tax, 'l10n_ar_tax_type') and tax.l10n_ar_tax_type in ["earnings", "earnings_scale"]:
+                    is_earnings_tax = True
+                elif getattr(tax, "withholding_type", False) == "tabla_ganancias":
+                    # Retención de Ganancias de adhoc (l10n_ar_account_withholding)
                     is_earnings_tax = True
                 elif tax.tax_group_id:
                     # Intentar identificar por nombre del grupo de impuestos
